@@ -1,35 +1,83 @@
-import { Tabs } from 'expo-router';
-import React from 'react';
-
-import { HapticTab } from '@/components/haptic-tab';
-import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { Tabs } from "expo-router";
+import React from "react";
+import { Platform, StyleSheet, View, Text } from "react-native";
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
-
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
+        tabBarActiveTintColor: "#6A1E3A",
+        tabBarInactiveTintColor: "#B9657C",
+        tabBarStyle: {
+          backgroundColor: "#FFF5F5",
+          borderTopWidth: 1,
+          borderTopColor: "#EAD7DA",
+          height: Platform.OS === "ios" ? 88 : 68,
+          paddingBottom: Platform.OS === "ios" ? 28 : 8,
+          paddingTop: 8,
+        },
+        tabBarLabelStyle: {
+          fontSize: 11,
+          fontWeight: "600",
+        },
         headerShown: false,
-        tabBarButton: HapticTab,
-      }}>
+      }}
+    >
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Home',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
+          title: "Accueil",
+          tabBarIcon: ({ color }) => <TabIcon name="home" color={color} />,
         }}
       />
       <Tabs.Screen
-        name="explore"
+        name="training"
         options={{
-          title: 'Explore',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="paperplane.fill" color={color} />,
+          title: "Entraînement",
+          tabBarIcon: ({ color }) => <TabIcon name="dumbbell" color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="progress"
+        options={{
+          title: "Progrès",
+          tabBarIcon: ({ color }) => <TabIcon name="chart" color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="profile"
+        options={{
+          title: "Profil",
+          tabBarIcon: ({ color }) => <TabIcon name="user" color={color} />,
         }}
       />
     </Tabs>
   );
 }
+
+function TabIcon({ name, color }: { name: string; color: string }) {
+  const icons: { [key: string]: string } = {
+    home: "🏠",
+    dumbbell: "💪",
+    chart: "📊",
+    user: "👤",
+  };
+
+  return (
+    <View style={styles.iconContainer}>
+      <Text style={[styles.icon, { color }]}>{icons[name]}</Text>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  iconContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingTop: 4,
+  },
+  icon: {
+    fontSize: 22,
+  },
+});
+
