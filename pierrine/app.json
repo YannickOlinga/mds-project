@@ -3,6 +3,9 @@
     "name": "pierrine",
     "slug": "pierrine",
     "version": "1.0.0",
+    "extra": {
+      "apiBaseUrl": "http://172.20.10.2:8000"
+    },
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "pierrine",
@@ -18,6 +21,7 @@
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
+      "usesCleartextTraffic": true,
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false
     },
@@ -38,7 +42,8 @@
             "backgroundColor": "#000000"
           }
         }
-      ]
+      ],
+      "expo-secure-store"
     ],
     "experiments": {
       "typedRoutes": true,

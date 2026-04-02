@@ -7,7 +7,7 @@ export default function Onboarding() {
     <View style={styles.container}>
       
       {/* Passer */}
-      <Pressable onPress={() => router.replace("/connect")} style={styles.skip}>
+      <Pressable onPress={() => router.replace("/login")} style={styles.skip}>
         <Text style={styles.skipText}>Passer</Text>
       </Pressable>
 
@@ -45,7 +45,7 @@ export default function Onboarding() {
         end={{ x: 1, y: 0 }}
         style={styles.button}
       >
-        <Pressable onPress={() => router.replace("/connect")}>
+        <Pressable onPress={() => router.replace("/login")}>
           <Text style={styles.buttonText}>Suivant</Text>
         </Pressable>
       </LinearGradient>

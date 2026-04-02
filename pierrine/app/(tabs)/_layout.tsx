@@ -1,8 +1,31 @@
 import { Tabs } from "expo-router";
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Platform, StyleSheet, View, Text } from "react-native";
+import { useRouter } from "expo-router";
+
+import { getAccessToken } from "@/lib/auth";
 
 export default function TabLayout() {
+  const router = useRouter();
+  const [isReady, setIsReady] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      const token = await getAccessToken();
+      if (!mounted) return;
+      setIsReady(true);
+      if (!token) {
+        router.replace("/login");
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [router]);
+
+  if (!isReady) return null;
+
   return (
     <Tabs
       screenOptions={{

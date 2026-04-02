@@ -10,14 +10,37 @@ import {
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
+import { useEffect, useState } from "react";
+
+import { getDeviceStatus } from "@/lib/api";
+import { getAccessToken } from "@/lib/auth";
 
 export default function ConnectedScreen() {
   const router = useRouter();
 
-  // Valeurs de démonstration ; tu les remplaces par les vraies plus tard
-  const deviceName = "Périnea #A4F2B";
-  const batteryPct = 85; // %
-  const signalLevel = "Excellent";
+  const [deviceName, setDeviceName] = useState("Périnea #A4F2B");
+  const [batteryPct, setBatteryPct] = useState(85);
+  const [signalLevel, setSignalLevel] = useState("Excellent");
+
+  useEffect(() => {
+    (async () => {
+      const token = await getAccessToken();
+      if (!token) {
+        router.replace("/login");
+        return;
+      }
+
+      getDeviceStatus(1)
+        .then((data) => {
+          setDeviceName(data.device_name);
+          setBatteryPct(data.battery_pct);
+          setSignalLevel(data.signal_level);
+        })
+        .catch(() => {
+          // fallback mock
+        });
+    })();
+  }, []);
 
   return (
     <View style={styles.container}>

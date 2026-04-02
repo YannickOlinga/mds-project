@@ -1,6 +1,8 @@
 import { View, Text, StyleSheet, ScrollView, Pressable, Switch } from "react-native";
 import { router } from "expo-router";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+
+import { getMeProfile, updateMeProfileSettings } from "@/lib/api";
 
 interface SettingItem {
   id: number;
@@ -15,12 +17,29 @@ export default function ProfileScreen() {
   const [notifications, setNotifications] = useState(true);
   const [darkMode, setDarkMode] = useState(false);
 
-  const personalInfo = [
+  const [personalInfo, setPersonalInfo] = useState([
     { label: "Nom", value: "Marie Dupont" },
     { label: "Email", value: "marie.dupont@email.com" },
     { label: "Âge", value: "34 ans" },
     { label: "Objectif", value: "Renforcement du périnée" },
-  ];
+  ]);
+
+  const [profileName, setProfileName] = useState("Marie Dupont");
+  const [profileEmail, setProfileEmail] = useState("marie.dupont@email.com");
+  const [levelLabel, setLevelLabel] = useState("Débutante");
+
+  const [stats, setStats] = useState({
+    sessions_total: 23,
+    time_total_formatted: "6h 45",
+    streak_days: 7,
+    badges_count: 4,
+  });
+
+  const [device, setDevice] = useState({
+    device_name: "Périnea #A4F2B",
+    battery_pct: 85,
+    connected: true,
+  });
 
   const settings: SettingItem[] = [
     { id: 1, title: "Rappels quotidiens", subtitle: "Recevez des rappels pour vos séances", icon: "🔔", type: "toggle" },
@@ -33,6 +52,34 @@ export default function ProfileScreen() {
     { id: 8, title: "Nous contacter", subtitle: "Support et assistance", icon: "✉️", type: "navigate" },
   ];
 
+  const initials = useMemo(() => {
+    const parts = profileName.split(" ").filter(Boolean);
+    const a = parts[0]?.[0] ?? "M";
+    const b = parts[1]?.[0] ?? "D";
+    return `${a}${b}`.toUpperCase();
+  }, [profileName]);
+
+  useEffect(() => {
+    getMeProfile(1)
+      .then((data) => {
+        setPersonalInfo(data.personalInfo);
+        setReminders(data.settings.reminders);
+        setNotifications(data.settings.notifications);
+        setDarkMode(data.settings.darkMode);
+        setStats(data.stats);
+        setLevelLabel(data.level.label);
+        if (data.device) setDevice(data.device);
+
+        const nameRow = data.personalInfo.find((x: any) => x.label === "Nom");
+        const emailRow = data.personalInfo.find((x: any) => x.label === "Email");
+        if (nameRow?.value) setProfileName(nameRow.value);
+        if (emailRow?.value) setProfileEmail(emailRow.value);
+      })
+      .catch(() => {
+        // fallback: conserve la démo locale
+      });
+  }, []);
+
   return (
     <ScrollView style={styles.container}>
       {/* Header */}
@@ -43,12 +90,12 @@ export default function ProfileScreen() {
       {/* Profile Card */}
       <View style={styles.profileCard}>
         <View style={styles.avatarContainer}>
-          <Text style={styles.avatarText}>MD</Text>
+          <Text style={styles.avatarText}>{initials}</Text>
         </View>
-        <Text style={styles.userName}>Marie Dupont</Text>
-        <Text style={styles.userEmail}>marie.dupont@email.com</Text>
+        <Text style={styles.userName}>{profileName}</Text>
+        <Text style={styles.userEmail}>{profileEmail}</Text>
         <View style={styles.levelBadge}>
-          <Text style={styles.levelText}>Niveau: Débutante</Text>
+          <Text style={styles.levelText}>Niveau: {levelLabel}</Text>
         </View>
       </View>
 
@@ -73,22 +120,22 @@ export default function ProfileScreen() {
         <Text style={styles.sectionTitle}>Vos statistiques</Text>
         <View style={styles.statsRow}>
           <View style={styles.statItem}>
-            <Text style={styles.statNumber}>23</Text>
+            <Text style={styles.statNumber}>{stats.sessions_total}</Text>
             <Text style={styles.statLabel}>Sessions</Text>
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statItem}>
-            <Text style={styles.statNumber}>6h 45</Text>
+            <Text style={styles.statNumber}>{stats.time_total_formatted}</Text>
             <Text style={styles.statLabel}>Temps</Text>
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statItem}>
-            <Text style={styles.statNumber}>7</Text>
+            <Text style={styles.statNumber}>{stats.streak_days}</Text>
             <Text style={styles.statLabel}>Jours</Text>
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statItem}>
-            <Text style={styles.statNumber}>4</Text>
+            <Text style={styles.statNumber}>{stats.badges_count}</Text>
             <Text style={styles.statLabel}>Badges</Text>
           </View>
         </View>
@@ -113,11 +160,15 @@ export default function ProfileScreen() {
               <View style={styles.settingRight}>
                 {setting.type === "toggle" && (
                   <Switch
-                    value={setting.id === 1 ? reminders : setting.id === 2 ? notifications : darkMode}
+                    value={setting.id === 1 ? reminders : notifications}
                     onValueChange={(value) => {
-                      if (setting.id === 1) setReminders(value);
-                      if (setting.id === 2) setNotifications(value);
-                      if (setting.id === 8) setDarkMode(value);
+                      if (setting.id === 1) {
+                        setReminders(value);
+                        updateMeProfileSettings({ reminders: value }, 1).catch(() => {});
+                      } else {
+                        setNotifications(value);
+                        updateMeProfileSettings({ notifications: value }, 1).catch(() => {});
+                      }
                     }}
                     trackColor={{ false: "#EAD7DA", true: "#B9657C" }}
                     thumbColor={"#FFF5F5"}
@@ -140,8 +191,10 @@ export default function ProfileScreen() {
             <Text style={styles.deviceIconText}>🦊</Text>
           </View>
           <View style={styles.deviceInfo}>
-            <Text style={styles.deviceName}>Périnea #A4F2B</Text>
-            <Text style={styles.deviceStatus}>Connecté • Batterie 85%</Text>
+            <Text style={styles.deviceName}>{device.device_name}</Text>
+            <Text style={styles.deviceStatus}>
+              {device.connected ? "Connecté" : "Non connecté"} • Batterie {device.battery_pct}%
+            </Text>
           </View>
           <View style={styles.deviceActions}>
             <Pressable style={styles.deviceButton}>

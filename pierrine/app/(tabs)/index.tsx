@@ -2,6 +2,9 @@ import { View, Text, StyleSheet, ScrollView, Pressable } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import { useState } from "react";
+import { useEffect } from "react";
+
+import { getDashboard } from "@/lib/api";
 
 interface Session {
   id: number;
@@ -14,18 +17,66 @@ interface Session {
 export default function DashboardScreen() {
   const [streak, setStreak] = useState(7);
   const [sessionsThisWeek, setSessionsThisWeek] = useState(5);
+  const [totalMinutes, setTotalMinutes] = useState(45);
+  const [objectivePercent, setObjectivePercent] = useState(85);
 
-  const upcomingSessions: Session[] = [
-    { id: 1, title: "Renforcement de base", duration: "15 min", level: "Débutant", color: "#B9657C" },
-    { id: 2, title: "Contrôle musculaire", duration: "20 min", level: "Intermédiaire", color: "#6A1E3A" },
-    { id: 3, title: "Endurance avancée", duration: "25 min", level: "Avancé", color: "#D4A5A5" },
-  ];
+  const [upcomingSessions, setUpcomingSessions] = useState<Session[]>([
+    {
+      id: 1,
+      title: "Renforcement de base",
+      duration: "15 min",
+      level: "Débutant",
+      color: "#B9657C",
+    },
+    {
+      id: 2,
+      title: "Contrôle musculaire",
+      duration: "20 min",
+      level: "Intermédiaire",
+      color: "#6A1E3A",
+    },
+    {
+      id: 3,
+      title: "Endurance avancée",
+      duration: "25 min",
+      level: "Avancé",
+      color: "#D4A5A5",
+    },
+  ]);
 
-  const tips = [
+  const [tips, setTips] = useState([
     { id: 1, text: "Respirez profondément pendant les exercices", icon: "🌬️" },
     { id: 2, text: "Maintenez une posture droite", icon: "🧘" },
     { id: 3, text: "Hydratez-vous régulièrement", icon: "💧" },
-  ];
+  ]);
+
+  const [device, setDevice] = useState({
+    deviceName: "Périnea #A4F2B",
+    batteryPct: 85,
+    signalLevel: "Excellent",
+    connected: true,
+  });
+
+  useEffect(() => {
+    getDashboard(1)
+      .then((data: any) => {
+        setStreak(data.streak_days);
+        setSessionsThisWeek(data.sessions_this_week);
+        setTotalMinutes(data.total_minutes);
+        setObjectivePercent(data.objective_percent);
+        setUpcomingSessions(data.upcoming_sessions);
+        setTips(data.tips);
+        setDevice({
+          deviceName: data.device.device_name,
+          batteryPct: data.device.battery_pct,
+          signalLevel: data.device.signal_level,
+          connected: data.device.connected,
+        });
+      })
+      .catch(() => {
+        // Fallback: garde les données mock si le backend n'est pas accessible.
+      });
+  }, []);
 
   return (
     <ScrollView style={styles.container}>
@@ -49,12 +100,12 @@ export default function DashboardScreen() {
           <Text style={styles.statSublabel}>cette semaine</Text>
         </View>
         <View style={styles.statCard}>
-          <Text style={styles.statNumber}>45</Text>
+          <Text style={styles.statNumber}>{totalMinutes}</Text>
           <Text style={styles.statLabel}>Minutes</Text>
           <Text style={styles.statSublabel}>temps total</Text>
         </View>
         <View style={styles.statCard}>
-          <Text style={styles.statNumber}>85%</Text>
+          <Text style={styles.statNumber}>{objectivePercent}%</Text>
           <Text style={styles.statLabel}>Objectif</Text>
           <Text style={styles.statSublabel}>atteint</Text>
         </View>
@@ -117,8 +168,10 @@ export default function DashboardScreen() {
             <Text style={styles.deviceIconText}>🦊</Text>
           </View>
           <View style={styles.deviceInfo}>
-            <Text style={styles.deviceName}>Périnea #A4F2B</Text>
-            <Text style={styles.deviceStatus}>Connecté • Batterie 85%</Text>
+            <Text style={styles.deviceName}>{device.deviceName}</Text>
+            <Text style={styles.deviceStatus}>
+              {device.connected ? "Connecté" : "Non connecté"} • Batterie {device.batteryPct}%
+            </Text>
           </View>
           <View style={styles.deviceStatusDot} />
         </View>

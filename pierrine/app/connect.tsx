@@ -1,8 +1,28 @@
 import { View, Text, StyleSheet, Pressable } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
+import { useCallback } from "react";
+
+import { connectDevice } from "@/lib/api";
+import { getAccessToken } from "@/lib/auth";
 
 export default function ConnectScreen() {
+  const handleConnect = useCallback(async () => {
+    try {
+      const token = await getAccessToken();
+      if (!token) {
+        router.replace("/login");
+        return;
+      }
+
+      await connectDevice(1);
+    } catch {
+      // fallback: on navigue quand même.
+    } finally {
+      router.replace("/connected");
+    }
+  }, []);
+
   return (
     <View style={styles.container}>
 
@@ -52,7 +72,7 @@ export default function ConnectScreen() {
         end={{ x: 1, y: 0 }}
         style={styles.button}
       >
-        <Pressable onPress={() => router.replace("/connected")}>
+        <Pressable onPress={handleConnect}>
           <Text style={styles.buttonText}>Connexion automatique</Text>
         </Pressable>
       </LinearGradient>

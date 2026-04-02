@@ -1,5 +1,8 @@
 import { View, Text, StyleSheet, ScrollView, Pressable } from "react-native";
 import { router } from "expo-router";
+import { useEffect, useState } from "react";
+
+import { getProgress } from "@/lib/api";
 
 interface StatData {
   day: string;
@@ -15,7 +18,7 @@ interface Achievement {
 }
 
 export default function ProgressScreen() {
-  const weeklyData: StatData[] = [
+  const [weeklyData, setWeeklyData] = useState<StatData[]>([
     { day: "L", value: 60 },
     { day: "M", value: 80 },
     { day: "M", value: 45 },
@@ -23,26 +26,55 @@ export default function ProgressScreen() {
     { day: "V", value: 70 },
     { day: "S", value: 30 },
     { day: "D", value: 50 },
-  ];
+  ]);
 
-  const achievements: Achievement[] = [
+  const [achievements, setAchievements] = useState<Achievement[]>([
     { id: 1, title: "Premiers pas", description: "Première session complétée", icon: "🎯", earned: true },
     { id: 2, title: "Régularité", description: "7 jours consécutifs", icon: "🔥", earned: true },
     { id: 3, title: "Athlète", description: "10 sessions complétées", icon: "🏆", earned: true },
     { id: 4, title: "Maître", description: "50 sessions complétées", icon: "👑", earned: false },
     { id: 5, title: "Éclair", description: "Session rapide terminée", icon: "⚡", earned: true },
     { id: 6, title: "Persévérance", description: "30 jours d'entraînement", icon: "💎", earned: false },
-  ];
+  ]);
 
-  const history = [
+  const [history, setHistory] = useState<
+    Array<{ id: number; date: string; duration: string; exercises: number; level: string }>
+  >([
     { id: 1, date: "Aujourd'hui", duration: "15 min", exercises: 4, level: "Débutant" },
     { id: 2, date: "Hier", duration: "20 min", exercises: 5, level: "Intermédiaire" },
     { id: 3, date: "Il y a 2 jours", duration: "15 min", exercises: 4, level: "Débutant" },
     { id: 4, date: "Il y a 3 jours", duration: "10 min", exercises: 3, level: "Débutant" },
     { id: 5, date: "Il y a 4 jours", duration: "25 min", exercises: 6, level: "Intermédiaire" },
-  ];
+  ]);
 
-  const maxValue = Math.max(...weeklyData.map((d) => d.value));
+  const [overall, setOverall] = useState({
+    sessions_total: 23,
+    streak_days: 7,
+    time_total_formatted: "6h 45",
+  });
+
+  const [monthlyGoal, setMonthlyGoal] = useState({
+    done: 18,
+    target: 25,
+    remaining: 7,
+    percent: 72,
+  });
+
+  useEffect(() => {
+    getProgress(1)
+      .then((data) => {
+        setWeeklyData(data.weekly.data);
+        setAchievements(data.achievements);
+        setHistory(data.history);
+        setOverall(data.overall);
+        setMonthlyGoal(data.monthly_goal);
+      })
+      .catch(() => {
+        // fallback mock
+      });
+  }, []);
+
+  const maxValue = Math.max(...weeklyData.map((d) => d.value), 1);
 
   return (
     <ScrollView style={styles.container}>
@@ -57,17 +89,17 @@ export default function ProgressScreen() {
       {/* Overall Stats */}
       <View style={styles.overallStats}>
         <View style={styles.overallCard}>
-          <Text style={styles.overallNumber}>23</Text>
+          <Text style={styles.overallNumber}>{overall.sessions_total}</Text>
           <Text style={styles.overallLabel}>Sessions</Text>
           <Text style={styles.overallSublabel}>totales</Text>
         </View>
         <View style={styles.overallCard}>
-          <Text style={styles.overallNumber}>7</Text>
+          <Text style={styles.overallNumber}>{overall.streak_days}</Text>
           <Text style={styles.overallLabel}>Jours</Text>
           <Text style={styles.overallSublabel}>consécutifs</Text>
         </View>
         <View style={styles.overallCard}>
-          <Text style={styles.overallNumber}>6h 45</Text>
+          <Text style={styles.overallNumber}>{overall.time_total_formatted}</Text>
           <Text style={styles.overallLabel}>Temps</Text>
           <Text style={styles.overallSublabel}>total</Text>
         </View>
@@ -109,14 +141,23 @@ export default function ProgressScreen() {
         <View style={styles.goalCard}>
           <View style={styles.goalHeader}>
             <Text style={styles.goalTitle}>Sessions complétées</Text>
-            <Text style={styles.goalValue}>18 / 25</Text>
+            <Text style={styles.goalValue}>
+              {monthlyGoal.done} / {monthlyGoal.target}
+            </Text>
           </View>
           <View style={styles.goalProgress}>
             <View style={styles.goalProgressBar}>
-              <View style={[styles.goalProgressFill, { width: "72%" }]} />
+              <View
+                style={[
+                  styles.goalProgressFill,
+                  { width: `${monthlyGoal.percent}%` },
+                ]}
+              />
             </View>
           </View>
-          <Text style={styles.goalSubtitle}>7 sessions restantes ce mois-ci</Text>
+          <Text style={styles.goalSubtitle}>
+            {monthlyGoal.remaining} sessions restantes ce mois-ci
+          </Text>
         </View>
       </View>
 
