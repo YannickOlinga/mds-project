@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { View, Text, StyleSheet, TextInput, Pressable } from "react-native";
+import { View, Text, StyleSheet, TextInput, Pressable, ActivityIndicator } from "react-native";
 import { router } from "expo-router";
 
 import { login } from "@/lib/api";
 import { saveTokens } from "@/lib/auth";
+import useAuthStore from "@/store/authStore";
 
 export default function LoginScreen() {
   const [username, setUsername] = useState("");
@@ -11,18 +12,33 @@ export default function LoginScreen() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  async function handleLogin() {
+async function handleLogin() {
+    if (!username.trim() || !password) {
+      setError('Nom et mot de passe requis');
+      return;
+    }
+
     setError(null);
     setLoading(true);
+    const auth = useAuthStore.getState();
+
     try {
-      const data: any = await login(username.trim(), password);
-      await saveTokens({
-        accessToken: data.access,
-        refreshToken: data.refresh,
+      // ✅ MOCK for dev - bypass backend
+      const mockData = {
+        accessToken: 'mock-login-' + Date.now(),
+        refreshToken: 'mock-refresh-' + Date.now(),
+        userEmail: username.trim() + '@example.com'
+      };
+      
+      await saveTokens(mockData);
+      auth.login(mockData, {
+        id: 'mock-login-user',
+        username: username.trim(),
+        email: mockData.userEmail
       });
       router.replace("/(tabs)");
     } catch (e: any) {
-      setError(e?.message ?? "Connexion impossible");
+      setError(e.message || 'Login échoué');
     } finally {
       setLoading(false);
     }

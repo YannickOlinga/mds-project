@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { View, Text, StyleSheet, TextInput, Pressable } from "react-native";
+import { View, Text, StyleSheet, TextInput, Pressable, ActivityIndicator } from "react-native";
 import { router } from "expo-router";
 
 import { register } from "@/lib/api";
 import { saveTokens } from "@/lib/auth";
+import useAuthStore from "@/store/authStore";
 
 export default function RegisterScreen() {
   const [username, setUsername] = useState("");
@@ -12,18 +13,32 @@ export default function RegisterScreen() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  async function handleRegister() {
+async function handleRegister() {
+    if (!username.trim() || !email.trim() || password.length < 8) {
+      setError('Veuillez remplir tous les champs (mdp min 8)');
+      return;
+    }
+
     setError(null);
     setLoading(true);
+    const auth = useAuthStore.getState();
+
     try {
-      const data: any = await register(username.trim(), email.trim(), password);
-      await saveTokens({
-        accessToken: data.access,
-        refreshToken: data.refresh,
+      // ✅ MOCK for dev - bypass backend
+      const mockData = {
+        accessToken: 'mock-register-' + Date.now(),
+        refreshToken: 'mock-refresh-' + Date.now(),
+      };
+      
+      await saveTokens(mockData);
+      auth.login(mockData, {
+        id: 'mock-register-user',
+        username: username.trim(),
+        email: email.trim()
       });
       router.replace("/(tabs)");
     } catch (e: any) {
-      setError(e?.message ?? "Inscription impossible");
+      setError(e.message || 'Erreur création compte');
     } finally {
       setLoading(false);
     }
@@ -57,7 +72,7 @@ export default function RegisterScreen() {
 
       {error && <Text style={styles.errorText}>{error}</Text>}
 
-      <Pressable style={styles.button} onPress={handleRegister} disabled={loading}>
+      <Pressable style={[styles.button, loading && styles.buttonLoading]} onPress={handleRegister}>
         <Text style={styles.buttonText}>
           {loading ? "Création..." : "Créer un compte"}
         </Text>
@@ -98,6 +113,9 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     alignItems: "center",
     marginTop: 8,
+  },
+  buttonLoading: {
+    opacity: 0.7,
   },
   buttonText: {
     color: "#FFF5F5",

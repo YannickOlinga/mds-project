@@ -60,21 +60,23 @@ export default function DashboardScreen() {
   useEffect(() => {
     getDashboard(1)
       .then((data: any) => {
-        setStreak(data.streak_days);
-        setSessionsThisWeek(data.sessions_this_week);
-        setTotalMinutes(data.total_minutes);
-        setObjectivePercent(data.objective_percent);
-        setUpcomingSessions(data.upcoming_sessions);
-        setTips(data.tips);
-        setDevice({
-          deviceName: data.device.device_name,
-          batteryPct: data.device.battery_pct,
-          signalLevel: data.device.signal_level,
-          connected: data.device.connected,
-        });
+        if (data.streak_days !== undefined) setStreak(data.streak_days);
+        if (data.sessions_this_week !== undefined) setSessionsThisWeek(data.sessions_this_week);
+        if (data.total_minutes !== undefined) setTotalMinutes(data.total_minutes);
+        if (data.objective_percent !== undefined) setObjectivePercent(data.objective_percent);
+        if (data.upcoming_sessions) setUpcomingSessions(data.upcoming_sessions);
+        if (data.tips) setTips(data.tips);
+        if (data.device) {
+          setDevice({
+            deviceName: data.device.device_name || 'Périnea #A4F2B',
+            batteryPct: data.device.battery_pct || 85,
+            signalLevel: data.device.signal_level || 'Excellent',
+            connected: data.device.connected !== undefined ? data.device.connected : true,
+          });
+        }
       })
       .catch(() => {
-        // Fallback: garde les données mock si le backend n'est pas accessible.
+        console.log('Dashboard fallback - données locales');
       });
   }, []);
 
@@ -95,17 +97,17 @@ export default function DashboardScreen() {
       {/* Stats Cards */}
       <View style={styles.statsContainer}>
         <View style={styles.statCard}>
-          <Text style={styles.statNumber}>{sessionsThisWeek}</Text>
+          <Text style={styles.statNumber}>{sessionsThisWeek || 0}</Text>
           <Text style={styles.statLabel}>Séances</Text>
           <Text style={styles.statSublabel}>cette semaine</Text>
         </View>
         <View style={styles.statCard}>
-          <Text style={styles.statNumber}>{totalMinutes}</Text>
+          <Text style={styles.statNumber}>{totalMinutes || 0}</Text>
           <Text style={styles.statLabel}>Minutes</Text>
           <Text style={styles.statSublabel}>temps total</Text>
         </View>
         <View style={styles.statCard}>
-          <Text style={styles.statNumber}>{objectivePercent}%</Text>
+          <Text style={styles.statNumber}>{objectivePercent || 0}%</Text>
           <Text style={styles.statLabel}>Objectif</Text>
           <Text style={styles.statSublabel}>atteint</Text>
         </View>

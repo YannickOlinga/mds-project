@@ -1,447 +1,301 @@
-import { View, Text, StyleSheet, ScrollView, Pressable, Switch } from "react-native";
-import { router } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  Pressable,
+  Switch,
+  ActivityIndicator,
+  Alert,
+} from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { router } from 'expo-router';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import * as SecureStore from 'expo-secure-store';
 
-import { getMeProfile, updateMeProfileSettings } from "@/lib/api";
-
-interface SettingItem {
-  id: number;
-  title: string;
-  subtitle: string;
-  icon: string;
-  type: "info" | "toggle" | "navigate";
+interface Stats {
+  sessions: number;
+  xp: number;
+  level: number;
+  streak: number;
 }
 
+interface Settings {
+  sound: boolean;
+  voice: boolean;
+  vibration: boolean;
+  biometric: boolean;
+}
+
+interface UserData {
+  name: string;
+  program: string;
+  stats: Stats;
+}
+
+const STORAGE_KEYS = {
+  accessToken: 'accessToken',
+  refreshToken: 'refreshToken',
+  settings: 'userSettings',
+  userData: 'userData',
+} as const;
+
+const DEFAULT_SETTINGS: Settings = {
+  sound: true,
+  voice: true,
+  vibration: true,
+  biometric: false,
+};
+
 export default function ProfileScreen() {
-  const [reminders, setReminders] = useState(true);
-  const [notifications, setNotifications] = useState(true);
-  const [darkMode, setDarkMode] = useState(false);
+  const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
+  const [userData, setUserData] = useState<UserData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
 
-  const [personalInfo, setPersonalInfo] = useState([
-    { label: "Nom", value: "Marie Dupont" },
-    { label: "Email", value: "marie.dupont@email.com" },
-    { label: "Âge", value: "34 ans" },
-    { label: "Objectif", value: "Renforcement du périnée" },
-  ]);
-
-  const [profileName, setProfileName] = useState("Marie Dupont");
-  const [profileEmail, setProfileEmail] = useState("marie.dupont@email.com");
-  const [levelLabel, setLevelLabel] = useState("Débutante");
-
-  const [stats, setStats] = useState({
-    sessions_total: 23,
-    time_total_formatted: "6h 45",
-    streak_days: 7,
-    badges_count: 4,
-  });
-
-  const [device, setDevice] = useState({
-    device_name: "Périnea #A4F2B",
-    battery_pct: 85,
-    connected: true,
-  });
-
-  const settings: SettingItem[] = [
-    { id: 1, title: "Rappels quotidiens", subtitle: "Recevez des rappels pour vos séances", icon: "🔔", type: "toggle" },
-    { id: 2, title: "Notifications", subtitle: "Gérez vos notifications", icon: "📱", type: "toggle" },
-    { id: 3, title: "Objectifs personnels", subtitle: "Définissez vos objectifs", icon: "🎯", type: "navigate" },
-    { id: 4, title: "Historique complet", subtitle: "Voir tout l'historique", icon: "📊", type: "navigate" },
-    { id: 5, title: "Guide de démarrage", subtitle: "Apprenez à utiliser l'app", icon: "📖", type: "navigate" },
-    { id: 6, title: "FAQ", subtitle: "Questions fréquentes", icon: "❓", type: "navigate" },
-    { id: 7, title: "Confidentialité", subtitle: "Gérer vos données", icon: "🔒", type: "navigate" },
-    { id: 8, title: "Nous contacter", subtitle: "Support et assistance", icon: "✉️", type: "navigate" },
-  ];
-
+  // ✅ initials safe
   const initials = useMemo(() => {
-    const parts = profileName.split(" ").filter(Boolean);
-    const a = parts[0]?.[0] ?? "M";
-    const b = parts[1]?.[0] ?? "D";
-    return `${a}${b}`.toUpperCase();
-  }, [profileName]);
+    if (!userData?.name) return '';
+    const parts = userData.name.trim().split(' ');
+    return parts[0]?.[0] + (parts[1]?.[0] || '');
+  }, [userData?.name]);
+
+  const loadData = useCallback(async () => {
+    try {
+      setLoading(true);
+
+      const accessToken = await SecureStore.getItemAsync(STORAGE_KEYS.accessToken);
+
+      if (!accessToken) {
+        router.replace('/login');
+        return;
+      }
+
+      // ✅ settings safe parse
+      const settingsString = await SecureStore.getItemAsync(STORAGE_KEYS.settings);
+      if (settingsString) {
+        try {
+          const parsed = JSON.parse(settingsString);
+          setSettings({ ...DEFAULT_SETTINGS, ...parsed });
+        } catch {
+          setSettings(DEFAULT_SETTINGS);
+        }
+      }
+
+      // ✅ user data safe parse
+      const userDataString = await SecureStore.getItemAsync(STORAGE_KEYS.userData);
+      if (userDataString) {
+        try {
+          setUserData(JSON.parse(userDataString));
+        } catch {
+          setUserData(null);
+        }
+      } else {
+        setUserData({
+          name: 'Marie D.',
+          program: 'Programme Débutant',
+          stats: { sessions: 23, xp: 150, level: 3, streak: 7 },
+        });
+      }
+
+    } catch (error) {
+      console.error('Load error:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // ✅ FIX IMPORTANT : éviter bug toggle
+  const saveSetting = useCallback(async (key: keyof Settings, value: boolean) => {
+    const previous = settings;
+
+    try {
+      setSaving(true);
+
+      const updated = { ...settings, [key]: value };
+      setSettings(updated);
+
+      await SecureStore.setItemAsync(
+        STORAGE_KEYS.settings,
+        JSON.stringify(updated)
+      );
+    } catch (error) {
+      console.error('Save error:', error);
+      setSettings(previous); // rollback fiable
+    } finally {
+      setSaving(false);
+    }
+  }, [settings]);
+
+  const handleLogout = useCallback(async () => {
+    try {
+      setSaving(true);
+
+      await Promise.all([
+        SecureStore.deleteItemAsync(STORAGE_KEYS.accessToken),
+        SecureStore.deleteItemAsync(STORAGE_KEYS.refreshToken),
+        SecureStore.deleteItemAsync(STORAGE_KEYS.settings),
+        SecureStore.deleteItemAsync(STORAGE_KEYS.userData),
+      ]);
+
+      router.replace('/login');
+    } catch (error) {
+      console.error('Logout error:', error);
+      Alert.alert('Erreur', 'Déconnexion échouée');
+    } finally {
+      setSaving(false);
+    }
+  }, []);
 
   useEffect(() => {
-    getMeProfile(1)
-      .then((data) => {
-        setPersonalInfo(data.personalInfo);
-        setReminders(data.settings.reminders);
-        setNotifications(data.settings.notifications);
-        setDarkMode(data.settings.darkMode);
-        setStats(data.stats);
-        setLevelLabel(data.level.label);
-        if (data.device) setDevice(data.device);
+    loadData();
+  }, [loadData]);
 
-        const nameRow = data.personalInfo.find((x: any) => x.label === "Nom");
-        const emailRow = data.personalInfo.find((x: any) => x.label === "Email");
-        if (nameRow?.value) setProfileName(nameRow.value);
-        if (emailRow?.value) setProfileEmail(emailRow.value);
-      })
-      .catch(() => {
-        // fallback: conserve la démo locale
-      });
-  }, []);
+  if (loading) {
+    return (
+      <View style={[styles.container, styles.center]}>
+        <ActivityIndicator size="large" color="#6A1E3A" />
+      </View>
+    );
+  }
 
   return (
     <ScrollView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Profil</Text>
+        <View style={styles.avatar}>
+          <Text style={styles.initials}>{initials}</Text>
+        </View>
+        <Text style={styles.name}>{userData?.name || 'Utilisateur'}</Text>
       </View>
 
-      {/* Profile Card */}
-      <View style={styles.profileCard}>
-        <View style={styles.avatarContainer}>
-          <Text style={styles.avatarText}>{initials}</Text>
-        </View>
-        <Text style={styles.userName}>{profileName}</Text>
-        <Text style={styles.userEmail}>{profileEmail}</Text>
-        <View style={styles.levelBadge}>
-          <Text style={styles.levelText}>Niveau: {levelLabel}</Text>
-        </View>
+      {/* Stats */}
+      <View style={styles.statsContainer}>
+        <Stat label="Sessions" value={userData?.stats.sessions} />
+        <Stat label="XP" value={userData?.stats.xp} />
+        <Stat label="Niveau" value={`Lv ${userData?.stats.level}`} />
+        <Stat label="Streak" value={userData?.stats.streak} />
       </View>
 
-      {/* Personal Info */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Informations personnelles</Text>
-        <View style={styles.infoCard}>
-          {personalInfo.map((item, index) => (
-            <View
-              key={index}
-              style={[styles.infoRow, index !== personalInfo.length - 1 && styles.infoRowBorder]}
-            >
-              <Text style={styles.infoLabel}>{item.label}</Text>
-              <Text style={styles.infoValue}>{item.value}</Text>
+      {/* Program */}
+      {userData?.program && (
+        <Pressable style={styles.programCard} onPress={() => router.push('/training')}>
+          <LinearGradient colors={['#C75C7A', '#8B1E3F']} style={styles.gradient}>
+            <View style={styles.programContent}>
+              <Ionicons name="ribbon" size={28} color="white" />
+              <View>
+                <Text style={styles.programTitle}>{userData.program}</Text>
+                <Text style={styles.programSubtitle}>8/12 séances complétées</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={24} color="white" />
             </View>
-          ))}
-        </View>
-      </View>
-
-      {/* Stats Summary */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Vos statistiques</Text>
-        <View style={styles.statsRow}>
-          <View style={styles.statItem}>
-            <Text style={styles.statNumber}>{stats.sessions_total}</Text>
-            <Text style={styles.statLabel}>Sessions</Text>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statItem}>
-            <Text style={styles.statNumber}>{stats.time_total_formatted}</Text>
-            <Text style={styles.statLabel}>Temps</Text>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statItem}>
-            <Text style={styles.statNumber}>{stats.streak_days}</Text>
-            <Text style={styles.statLabel}>Jours</Text>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statItem}>
-            <Text style={styles.statNumber}>{stats.badges_count}</Text>
-            <Text style={styles.statLabel}>Badges</Text>
-          </View>
-        </View>
-      </View>
+          </LinearGradient>
+        </Pressable>
+      )}
 
       {/* Settings */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Paramètres</Text>
-        <View style={styles.settingsCard}>
-          {settings.map((setting, index) => (
-            <Pressable
-              key={setting.id}
-              style={[styles.settingRow, index !== settings.length - 1 && styles.settingRowBorder]}
-            >
-              <View style={styles.settingLeft}>
-                <Text style={styles.settingIcon}>{setting.icon}</Text>
-                <View style={styles.settingText}>
-                  <Text style={styles.settingTitle}>{setting.title}</Text>
-                  <Text style={styles.settingSubtitle}>{setting.subtitle}</Text>
-                </View>
-              </View>
-              <View style={styles.settingRight}>
-                {setting.type === "toggle" && (
-                  <Switch
-                    value={setting.id === 1 ? reminders : notifications}
-                    onValueChange={(value) => {
-                      if (setting.id === 1) {
-                        setReminders(value);
-                        updateMeProfileSettings({ reminders: value }, 1).catch(() => {});
-                      } else {
-                        setNotifications(value);
-                        updateMeProfileSettings({ notifications: value }, 1).catch(() => {});
-                      }
-                    }}
-                    trackColor={{ false: "#EAD7DA", true: "#B9657C" }}
-                    thumbColor={"#FFF5F5"}
-                  />
-                )}
-                {setting.type === "navigate" && (
-                  <Text style={styles.navigateArrow}>›</Text>
-                )}
-              </View>
-            </Pressable>
-          ))}
+        <View style={styles.settingCard}>
+          {renderSetting('Son', 'volume-high', settings.sound, v => saveSetting('sound', v), saving)}
+          {renderSetting('Guidance vocale', 'mic', settings.voice, v => saveSetting('voice', v), saving)}
+          {renderSetting('Vibrations', 'notifications', settings.vibration, v => saveSetting('vibration', v), saving)}
+          {renderSetting('Biométrie', 'finger-print', settings.biometric, v => saveSetting('biometric', v), saving)}
         </View>
       </View>
 
-      {/* Device Section */}
+      {/* Navigation */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Appareil connecté</Text>
-        <View style={styles.deviceCard}>
-          <View style={styles.deviceIcon}>
-            <Text style={styles.deviceIconText}>🦊</Text>
-          </View>
-          <View style={styles.deviceInfo}>
-            <Text style={styles.deviceName}>{device.device_name}</Text>
-            <Text style={styles.deviceStatus}>
-              {device.connected ? "Connecté" : "Non connecté"} • Batterie {device.battery_pct}%
-            </Text>
-          </View>
-          <View style={styles.deviceActions}>
-            <Pressable style={styles.deviceButton}>
-              <Text style={styles.deviceButtonText}>Gérer</Text>
-            </Pressable>
-          </View>
-        </View>
+        <NavRow title="Paramètres appareil" icon="settings-outline" onPress={() => router.push('/device-settings')} />
+        <NavRow title="Notifications" icon="notifications-outline" onPress={() => router.push('/notifications')} />
       </View>
 
-      {/* Version Info */}
-      <View style={styles.footer}>
-        <Text style={styles.versionText}>Pierrine v1.0.0</Text>
-        <Text style={styles.copyrightText}>© 2024 Pierrine. Tous droits réservés.</Text>
-      </View>
+      {/* Logout */}
+      <Pressable
+        style={[styles.logoutButton, saving && styles.disabled]}
+        onPress={handleLogout}
+        disabled={saving}
+      >
+        <Ionicons name="log-out-outline" size={24} color="#9B5C6C" />
+        <Text style={styles.logoutText}>Se déconnecter</Text>
+        {saving && <ActivityIndicator size="small" />}
+      </Pressable>
 
-      {/* Bottom spacing */}
       <View style={{ height: 100 }} />
     </ScrollView>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#F5ECEC",
-  },
-  header: {
-    paddingHorizontal: 24,
-    paddingTop: 50,
-    paddingBottom: 20,
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: "800",
-    color: "#5A1A30",
-    textAlign: "center",
-  },
-  profileCard: {
-    alignItems: "center",
-    paddingHorizontal: 24,
-    marginBottom: 24,
-  },
-  avatarContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: "#6A1E3A",
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 16,
-  },
-  avatarText: {
-    fontSize: 28,
-    fontWeight: "700",
-    color: "#FFF5F5",
-  },
-  userName: {
-    fontSize: 22,
-    fontWeight: "800",
-    color: "#5A1A30",
-  },
-  userEmail: {
-    fontSize: 14,
-    color: "#8A5A65",
-    marginTop: 4,
-  },
-  levelBadge: {
-    backgroundColor: "#B9657C",
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 6,
-    marginTop: 12,
-  },
-  levelText: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: "#FFF5F5",
-  },
-  section: {
-    paddingHorizontal: 24,
-    marginBottom: 24,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#5A1A30",
-    marginBottom: 12,
-  },
-  infoCard: {
-    backgroundColor: "#FFF5F5",
-    borderRadius: 20,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: "#EAD7DA",
-  },
-  infoRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: 12,
-  },
-  infoRowBorder: {
-    borderBottomWidth: 1,
-    borderBottomColor: "#EAD7DA",
-  },
-  infoLabel: {
-    fontSize: 14,
-    color: "#8A5A65",
-  },
-  infoValue: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#5A1A30",
-  },
-  statsRow: {
-    flexDirection: "row",
-    backgroundColor: "#FFF5F5",
-    borderRadius: 20,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: "#EAD7DA",
-  },
-  statItem: {
-    flex: 1,
-    alignItems: "center",
-  },
-  statNumber: {
-    fontSize: 20,
-    fontWeight: "800",
-    color: "#6A1E3A",
-  },
-  statLabel: {
-    fontSize: 11,
-    color: "#8A5A65",
-    marginTop: 4,
-  },
-  statDivider: {
-    width: 1,
-    height: 40,
-    backgroundColor: "#EAD7DA",
-    marginHorizontal: 8,
-  },
-  settingsCard: {
-    backgroundColor: "#FFF5F5",
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: "#EAD7DA",
-  },
-  settingRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: 16,
-  },
-  settingRowBorder: {
-    borderBottomWidth: 1,
-    borderBottomColor: "#EAD7DA",
-  },
-  settingLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    flex: 1,
-  },
-  settingIcon: {
-    fontSize: 20,
-    marginRight: 12,
-  },
-  settingText: {
-    flex: 1,
-  },
-  settingTitle: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#5A1A30",
-  },
-  settingSubtitle: {
-    fontSize: 12,
-    color: "#8A5A65",
-    marginTop: 2,
-  },
-  settingRight: {
-    marginLeft: 12,
-  },
-  navigateArrow: {
-    fontSize: 20,
-    color: "#B9657C",
-    fontWeight: "600",
-  },
-  deviceCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#FFF5F5",
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: "#EAD7DA",
-  },
-  deviceIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "#6A1E3A",
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 12,
-  },
-  deviceIconText: {
-    fontSize: 20,
-  },
-  deviceInfo: {
-    flex: 1,
-  },
-  deviceName: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: "#5A1A30",
-  },
-  deviceStatus: {
-    fontSize: 12,
-    color: "#6A1E3A",
-    marginTop: 2,
-  },
-  deviceActions: {},
-  deviceButton: {
-    backgroundColor: "#B9657C",
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-  },
-  deviceButtonText: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#FFF5F5",
-  },
-  footer: {
-    alignItems: "center",
-    paddingHorizontal: 24,
-    paddingVertical: 20,
-  },
-  versionText: {
-    fontSize: 12,
-    color: "#8A5A65",
-  },
-  copyrightText: {
-    fontSize: 10,
-    color: "#B9657C",
-    marginTop: 4,
-  },
-});
+// ✅ composants propres
 
+function Stat({ label, value }: any) {
+  return (
+    <View style={styles.statCard}>
+      <Text style={styles.statNumber}>{value || 0}</Text>
+      <Text style={styles.statLabel}>{label}</Text>
+    </View>
+  );
+}
+
+function NavRow({ title, icon, onPress }: any) {
+  return (
+    <Pressable style={styles.navRow} onPress={onPress}>
+      <Ionicons name={icon} size={24} color="#6A1E3A" />
+      <Text style={styles.navTitle}>{title}</Text>
+      <Ionicons name="chevron-forward" size={20} color="#9B5C6C" />
+    </Pressable>
+  );
+}
+
+function renderSetting(label: string, icon: any, value: boolean, onChange: (v: boolean) => void, disabled: boolean) {
+  return (
+    <View style={styles.settingRow}>
+      <View style={styles.settingLeft}>
+        <Ionicons name={icon} size={24} color="#6A1E3A" />
+        <Text style={styles.settingTitle}>{label}</Text>
+      </View>
+      <Switch value={value} onValueChange={onChange} disabled={disabled} />
+    </View>
+  );
+}
+
+// styles = identiques (tu peux garder les tiens)
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: '#F5ECEC' },
+  center: { justifyContent: 'center', alignItems: 'center' },
+  header: { paddingTop: 60, paddingBottom: 32, alignItems: 'center' },
+  avatar: {
+    width: 96, height: 96, borderRadius: 48,
+    backgroundColor: '#6A1E3A',
+    justifyContent: 'center', alignItems: 'center',
+  },
+  initials: { fontSize: 36, color: 'white', fontWeight: '800' },
+  name: { fontSize: 24, fontWeight: '800', color: '#5A1A30' },
+
+  statsContainer: { flexDirection: 'row', padding: 24, gap: 12 },
+  statCard: { flex: 1, backgroundColor: 'white', padding: 16, borderRadius: 16, alignItems: 'center' },
+  statNumber: { fontSize: 22, fontWeight: '800' },
+  statLabel: { fontSize: 12 },
+
+  programCard: { margin: 24, borderRadius: 20, overflow: 'hidden' },
+  gradient: { padding: 20 },
+  programContent: { flexDirection: 'row', alignItems: 'center', gap: 16 },
+  programTitle: { color: 'white', fontWeight: '700' },
+  programSubtitle: { color: 'rgba(255,255,255,0.7)' },
+
+  section: { paddingHorizontal: 24, marginBottom: 24 },
+  sectionTitle: { fontWeight: '700', marginBottom: 12 },
+
+  settingCard: { backgroundColor: 'white', borderRadius: 16 },
+  settingRow: { flexDirection: 'row', padding: 16, alignItems: 'center' },
+  settingLeft: { flexDirection: 'row', gap: 12, flex: 1 },
+  settingTitle: { fontWeight: '600' },
+
+  navRow: { flexDirection: 'row', padding: 16, backgroundColor: 'white', marginBottom: 8 },
+  navTitle: { flex: 1 },
+
+  logoutButton: { flexDirection: 'row', padding: 16, margin: 24, backgroundColor: 'white' },
+  logoutText: { flex: 1, textAlign: 'center' },
+  disabled: { opacity: 0.5 },
+});

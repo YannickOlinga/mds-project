@@ -1,7 +1,13 @@
 import { View, Text, StyleSheet, ScrollView, Pressable } from "react-native";
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
-
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  interpolate,
+} from 'react-native-reanimated';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { getProgress } from "@/lib/api";
 
 interface StatData {
@@ -18,6 +24,7 @@ interface Achievement {
 }
 
 export default function ProgressScreen() {
+  const [filter, setFilter] = useState<'week' | 'month' | 'year'>('week');
   const [weeklyData, setWeeklyData] = useState<StatData[]>([
     { day: "L", value: 60 },
     { day: "M", value: 80 },
@@ -28,14 +35,15 @@ export default function ProgressScreen() {
     { day: "D", value: 50 },
   ]);
 
-  const [achievements, setAchievements] = useState<Achievement[]>([
-    { id: 1, title: "Premiers pas", description: "Première session complétée", icon: "🎯", earned: true },
-    { id: 2, title: "Régularité", description: "7 jours consécutifs", icon: "🔥", earned: true },
-    { id: 3, title: "Athlète", description: "10 sessions complétées", icon: "🏆", earned: true },
-    { id: 4, title: "Maître", description: "50 sessions complétées", icon: "👑", earned: false },
-    { id: 5, title: "Éclair", description: "Session rapide terminée", icon: "⚡", earned: true },
-    { id: 6, title: "Persévérance", description: "30 jours d'entraînement", icon: "💎", earned: false },
-  ]);
+  const achievements = [
+    { id: 1, title: "Premiers pas", description: "Première session", icon: "walk", earned: true },
+    { id: 2, title: "Régularité", description: "7 jours consécutifs", icon: "flame", earned: true },
+    { id: 3, title: "Athlète", description: "10 sessions", icon: "medal", earned: true },
+    { id: 4, title: "Maître", description: "50 sessions", icon: "crown", earned: false },
+    { id: 5, title: "Éclair", description: "Session rapide", icon: "flash", earned: true },
+    { id: 6, title: "Persévérance", description: "30 jours", icon: "diamond", earned: false },
+  ];
+
 
   const [history, setHistory] = useState<
     Array<{ id: number; date: string; duration: string; exercises: number; level: string }>
@@ -63,16 +71,16 @@ export default function ProgressScreen() {
   useEffect(() => {
     getProgress(1)
       .then((data) => {
-        setWeeklyData(data.weekly.data);
-        setAchievements(data.achievements);
-        setHistory(data.history);
-        setOverall(data.overall);
-        setMonthlyGoal(data.monthly_goal);
+        if (data.weekly?.data) setWeeklyData(data.weekly.data);
+        if (data.history) setHistory(data.history);
+        if (data.overall) setOverall(data.overall);
+        if (data.monthly_goal) setMonthlyGoal(data.monthly_goal);
       })
       .catch(() => {
-        // fallback mock
+        console.log('Progress fallback - données locales');
       });
   }, []);
+
 
   const maxValue = Math.max(...weeklyData.map((d) => d.value), 1);
 
@@ -89,17 +97,17 @@ export default function ProgressScreen() {
       {/* Overall Stats */}
       <View style={styles.overallStats}>
         <View style={styles.overallCard}>
-          <Text style={styles.overallNumber}>{overall.sessions_total}</Text>
+          <Text style={styles.overallNumber}>{overall.sessions_total || 0}</Text>
           <Text style={styles.overallLabel}>Sessions</Text>
           <Text style={styles.overallSublabel}>totales</Text>
         </View>
         <View style={styles.overallCard}>
-          <Text style={styles.overallNumber}>{overall.streak_days}</Text>
+          <Text style={styles.overallNumber}>{overall.streak_days || 0}</Text>
           <Text style={styles.overallLabel}>Jours</Text>
           <Text style={styles.overallSublabel}>consécutifs</Text>
         </View>
         <View style={styles.overallCard}>
-          <Text style={styles.overallNumber}>{overall.time_total_formatted}</Text>
+          <Text style={styles.overallNumber}>{overall.time_total_formatted || '0h 0'}</Text>
           <Text style={styles.overallLabel}>Temps</Text>
           <Text style={styles.overallSublabel}>total</Text>
         </View>
