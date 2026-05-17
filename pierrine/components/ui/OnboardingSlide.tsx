@@ -47,13 +47,11 @@ const OnboardingSlide: React.FC<Props> = React.memo(({ data, index, scrollX }) =
       -1,
       true
     );
-  }, []);
+  }, [floatOffset, pulseScale]);
 
   const animatedStyle = useAnimatedStyle(() => {
     const inputRange = [(index - 1) * SCREEN_WIDTH, index * SCREEN_WIDTH, (index + 1) * SCREEN_WIDTH];
     const slideScale = interpolate(scrollX.value, inputRange, [0.92, 1, 0.92], Extrapolate.CLAMP);
-    const contentOpacity = interpolate(scrollX.value, inputRange, [0.8, 1, 0.8], Extrapolate.CLAMP);
-
     return {
       transform: [{ scale: slideScale }],
     };
@@ -97,7 +95,9 @@ const OnboardingSlide: React.FC<Props> = React.memo(({ data, index, scrollX }) =
       </Animated.View>
     </Animated.View>
   );
-}, () => true); // Minimal re-render
+}, () => true);
+
+OnboardingSlide.displayName = 'OnboardingSlide';
 
 const styles = StyleSheet.create({
   slide: {
@@ -186,4 +186,3 @@ const styles = StyleSheet.create({
 });
 
 export default OnboardingSlide;
-

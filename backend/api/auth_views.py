@@ -1,15 +1,15 @@
 from __future__ import annotations
 
 from django.contrib.auth import authenticate, get_user_model
+from django.utils.translation import gettext_lazy as _
+from rest_framework import serializers
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
-from rest_framework import serializers
-from django.utils.translation import gettext_lazy as _
 
 from .models import Profile
-from .utils import ensure_demo_data
+from .utils import ensure_profile_data
 
 
 class RegisterSerializer(serializers.Serializer):
@@ -29,6 +29,22 @@ class LoginSerializer(serializers.Serializer):
     password = serializers.CharField(write_only=True)
 
 
+def auth_payload(user, profile: Profile) -> dict:
+    refresh = RefreshToken.for_user(user)
+    access = refresh.access_token
+    return {
+        "access": str(access),
+        "refresh": str(refresh),
+        "profile_id": profile.id,
+        "user": {
+            "id": user.id,
+            "username": user.username,
+            "email": user.email,
+        },
+        "profile": {"name": profile.name, "email": profile.email},
+    }
+
+
 class RegisterView(APIView):
     permission_classes = [AllowAny]
 
@@ -42,28 +58,16 @@ class RegisterView(APIView):
 
         User = get_user_model()
         user = User.objects.create_user(username=username, email=email, password=password)
-
         profile = Profile.objects.create(
             user=user,
             name=username,
             email=email,
-            age=34,
-            objective="Renforcement du périnée",
+            age=0,
+            objective="",
         )
+        ensure_profile_data(profile.id)
 
-        ensure_demo_data(profile.id)
-
-        refresh = RefreshToken.for_user(user)
-        access = refresh.access_token
-
-        return Response(
-            {
-                "access": str(access),
-                "refresh": str(refresh),
-                "profile_id": profile.id,
-                "profile": {"name": profile.name, "email": profile.email},
-            }
-        )
+        return Response(auth_payload(user, profile))
 
 
 class LoginView(APIView):
@@ -84,22 +88,11 @@ class LoginView(APIView):
         if profile is None:
             profile = Profile.objects.create(
                 user=user,
-                name=username,
+                name=user.username,
                 email=user.email or "",
-                age=34,
-                objective="Renforcement du périnée",
+                age=0,
+                objective="",
             )
-            ensure_demo_data(profile.id)
+        ensure_profile_data(profile.id)
 
-        refresh = RefreshToken.for_user(user)
-        access = refresh.access_token
-
-        return Response(
-            {
-                "access": str(access),
-                "refresh": str(refresh),
-                "profile_id": profile.id,
-                "profile": {"name": profile.name, "email": profile.email},
-            }
-        )
-
+        return Response(auth_payload(user, profile))

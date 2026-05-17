@@ -2,9 +2,9 @@ import { useState } from "react";
 import { View, Text, StyleSheet, TextInput, Pressable, ActivityIndicator } from "react-native";
 import { router } from "expo-router";
 
-import { register } from "@/lib/api";
-import { saveTokens } from "@/lib/auth";
+import { colors } from "@/constants/theme/colors";
 import useAuthStore from "@/store/authStore";
+import { getErrorMessage } from "@/utils/apiError";
 
 export default function RegisterScreen() {
   const [username, setUsername] = useState("");
@@ -12,8 +12,9 @@ export default function RegisterScreen() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const register = useAuthStore((state) => state.register);
 
-async function handleRegister() {
+  async function handleRegister() {
     if (!username.trim() || !email.trim() || password.length < 8) {
       setError('Veuillez remplir tous les champs (mdp min 8)');
       return;
@@ -21,24 +22,12 @@ async function handleRegister() {
 
     setError(null);
     setLoading(true);
-    const auth = useAuthStore.getState();
 
     try {
-      // ✅ MOCK for dev - bypass backend
-      const mockData = {
-        accessToken: 'mock-register-' + Date.now(),
-        refreshToken: 'mock-refresh-' + Date.now(),
-      };
-      
-      await saveTokens(mockData);
-      auth.login(mockData, {
-        id: 'mock-register-user',
-        username: username.trim(),
-        email: email.trim()
-      });
-      router.replace("/(tabs)");
-    } catch (e: any) {
-      setError(e.message || 'Erreur création compte');
+      await register(username.trim(), email.trim(), password);
+      router.replace("/questionnaire");
+    } catch (e: unknown) {
+      setError(getErrorMessage(e));
     } finally {
       setLoading(false);
     }
@@ -73,13 +62,11 @@ async function handleRegister() {
       {error && <Text style={styles.errorText}>{error}</Text>}
 
       <Pressable style={[styles.button, loading && styles.buttonLoading]} onPress={handleRegister}>
-        <Text style={styles.buttonText}>
-          {loading ? "Création..." : "Créer un compte"}
-        </Text>
+        {loading ? <ActivityIndicator color={colors.surface} /> : <Text style={styles.buttonText}>Créer un compte</Text>}
       </Pressable>
 
       <Pressable onPress={() => router.replace("/login")}>
-        <Text style={styles.linkText}>J'ai déjà un compte</Text>
+        <Text style={styles.linkText}>J&apos;ai déjà un compte</Text>
       </Pressable>
     </View>
   );
@@ -88,27 +75,27 @@ async function handleRegister() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F5ECEC",
+    backgroundColor: colors.background,
     padding: 24,
     justifyContent: "center",
   },
   title: {
     fontSize: 28,
     fontWeight: "800",
-    color: "#5A1A30",
+    color: colors.plum,
     marginBottom: 24,
   },
   input: {
-    backgroundColor: "#FFF5F5",
+    backgroundColor: colors.surface,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: "#EAD7DA",
+    borderColor: colors.border,
     paddingHorizontal: 16,
     paddingVertical: 12,
     marginBottom: 12,
   },
   button: {
-    backgroundColor: "#6A1E3A",
+    backgroundColor: colors.plum,
     borderRadius: 16,
     paddingVertical: 14,
     alignItems: "center",
@@ -118,20 +105,19 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   buttonText: {
-    color: "#FFF5F5",
+    color: colors.surface,
     fontWeight: "800",
     fontSize: 16,
   },
   errorText: {
-    color: "#B00020",
+    color: colors.danger,
     marginTop: 8,
     marginBottom: 8,
   },
   linkText: {
     marginTop: 18,
-    color: "#B9657C",
+    color: colors.coral,
     fontWeight: "700",
     textAlign: "center",
   },
 });
-

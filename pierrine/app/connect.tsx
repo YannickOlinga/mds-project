@@ -1,351 +1,171 @@
-import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  Pressable,
-  Dimensions,
-} from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { router } from 'expo-router';
-import Ionicons from '@expo/vector-icons/Ionicons';
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withRepeat,
-  withTiming,
-  Easing,
-  interpolate,
-  Extrapolate,
-} from 'react-native-reanimated';
+import { LinearGradient } from "expo-linear-gradient";
+import { Bluetooth, BluetoothConnected, RefreshCcw } from "lucide-react-native";
+import { useEffect } from "react";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { router } from "expo-router";
 
-import * as Haptics from 'expo-haptics';
-
-const { height: SCREEN_HEIGHT } = Dimensions.get('window');
-
-const STATES = {
-  idle: {
-    icon: 'bluetooth-outline',
-    color: '#6A1E3A',
-    text1: 'Connectez votre sonde',
-    text2: 'Activez le Bluetooth et placez votre sonde à proximité',
-  },
-  connecting: {
-    icon: 'hourglass-outline',
-    color: '#C75C7A',
-    text1: 'Connexion en cours',
-    text2: 'Veuillez patienter...',
-  },
-  connected: {
-    icon: 'checkmark-circle',
-    color: '#8B1E3F',
-    text1: 'Connectée !',
-    text2: 'Votre sonde est prête',
-  },
-} as const;
-
-// Supprimé : hardcoded mocks
-// TODO: récupérer depuis device connecté
+import ErrorState from "@/components/ui/ErrorState";
+import { useToast } from "@/components/ui/Toast";
+import { colors, gradients } from "@/constants/theme/colors";
+import { radius, spacing } from "@/constants/theme/spacing";
+import { useConnectDeviceMutation } from "@/hooks/useApiQueries";
+import useAuthStore from "@/store/authStore";
+import { useDeviceStore } from "@/store/deviceStore";
+import { getErrorMessage } from "@/utils/apiError";
 
 export default function ConnectScreen() {
-  const [state, setState] = useState<'idle' | 'connecting' | 'connected'>('idle');
+  const { state, devices, connectedDevice, error, scan, connect, reset } = useDeviceStore();
+  const connectBackend = useConnectDeviceMutation();
+  const showToast = useToast((toast) => toast.show);
+  const isAuthenticated = useAuthStore((auth) => auth.isAuthenticated);
 
-  // Pulsing circles
-  const pulse1 = useSharedValue(1);
-  const pulse2 = useSharedValue(0.8);
-  const pulse3 = useSharedValue(1.2);
+  useEffect(() => () => reset(), [reset]);
 
-  const loaderRotation = useSharedValue(0);
-  const batteryOpacity = useSharedValue(0);
-  const batteryY = useSharedValue(50);
+  async function handleConnect(deviceId: string) {
+    await connect(deviceId);
+    const latest = useDeviceStore.getState().connectedDevice;
+    if (!latest) return;
 
-  useEffect(() => {
-    pulse1.value = withRepeat(
-      withTiming(1.3, { duration: 2000, easing: Easing.inOut(Easing.ease) }),
-      -1,
-      true
+    connectBackend.mutate(
+      {
+        device_name: latest.name,
+        connected: true,
+      },
+      {
+        onSuccess: () => {
+          showToast("Sonde connectée");
+          router.replace("/connected");
+        },
+        onError: (apiError) => showToast(getErrorMessage(apiError)),
+      }
     );
-    pulse2.value = withRepeat(
-      withTiming(1.1, { duration: 2500, easing: Easing.inOut(Easing.ease) }),
-      -1,
-      true
-    );
-    pulse3.value = withRepeat(
-      withTiming(1.4, { duration: 1800, easing: Easing.inOut(Easing.ease) }),
-      -1,
-      true
-    );
+  }
 
-    loaderRotation.value = withRepeat(
-      withTiming(360, { duration: 1000 }),
-      -1,
-      false
-    );
-  }, []);
-
-// Supprimé : simulation setTimeout
-  // TODO: Implémenter BleManager.scanDevices() real async
-
-  useEffect(() => {
-    if (state === 'connected') {
-      batteryOpacity.value = withTiming(1, { duration: 500 });
-      batteryY.value = withTiming(0, { duration: 500 });
-    }
-  }, [state]);
-
-  const handleConnect = async () => {
-    console.log('🔄 Début connexion Bluetooth...');
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setState('connecting');
-    
-    // ✅ Restore mock connect simulation (2s)
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    setState('connected');
-    console.log('✅ Mock Bluetooth connecté');
-  };
-
-  const handleContinue = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-    router.replace('/questionnaire');
-  };
-
-  const pulseStyle1 = useAnimatedStyle(() => ({
-    transform: [{ scale: pulse1.value }],
-    opacity: interpolate(pulse1.value, [1, 1.3], [0.3, 0.6], Extrapolate.CLAMP),
-  }));
-
-  const pulseStyle2 = useAnimatedStyle(() => ({
-    transform: [{ scale: pulse2.value }],
-    opacity: interpolate(pulse2.value, [0.8, 1.1], [0.2, 0.5], Extrapolate.CLAMP),
-  }));
-
-  const pulseStyle3 = useAnimatedStyle(() => ({
-    transform: [{ scale: pulse3.value }],
-    opacity: interpolate(pulse3.value, [1, 1.4], [0.4, 0.7], Extrapolate.CLAMP),
-  }));
-
-  const loaderStyle = useAnimatedStyle(() => ({
-    transform: [{ rotate: `${loaderRotation.value}deg` }],
-  }));
-
-  const batteryStyle = useAnimatedStyle(() => ({
-    opacity: batteryOpacity.value,
-    transform: [{ translateY: batteryY.value }],
-  }));
-
-  const current = STATES[state];
+  function skipDeviceConnection() {
+    router.replace(isAuthenticated ? "/(tabs)" : "/login");
+  }
 
   return (
-    <View style={styles.container}>
-      {/* Back */}
-      <Pressable onPress={() => router.back()} style={styles.backButton}>
-        <Text style={styles.backText}>← Retour</Text>
+    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      <Pressable onPress={() => router.back()}>
+        <Text style={styles.back}>Retour</Text>
       </Pressable>
 
-      {/* Pulsing backgrounds - décoratifs */}
-      <Animated.View pointerEvents="none" style={[styles.pulseCircle1, pulseStyle1]} />
-      <Animated.View pointerEvents="none" style={[styles.pulseCircle2, pulseStyle2]} />
-      <Animated.View pointerEvents="none" style={[styles.pulseCircle3, pulseStyle3]} />
-
-      {/* Main content */}
-      <View style={styles.main}>
-        <View style={styles.iconContainer}>
-          <View style={[styles.iconBg, { backgroundColor: current.color }]}>
-            <Ionicons
-              name={current.icon as any}
-              size={80}
-              color="white"
-              style={state === 'connecting' ? loaderStyle : undefined}
-            />
-          </View>
-        </View>
-
-        <Text style={styles.title}>{current.text1}</Text>
-        <Text style={styles.subtitle}>{current.text2}</Text>
-
-        {/* Battery Card - caché jusqu'à connexion réelle */}
-        {state === 'connected' && (
-          <Animated.View pointerEvents="none" style={[styles.batteryCard, batteryStyle]}>
-            <Text style={styles.batteryTitle}>Sonde Périnea</Text>
-            <Text style={styles.batteryText}>Connectée - Données en temps réel</Text>
-            <Text style={styles.batterySubtitle}>Battery & signal via Bluetooth</Text>
-          </Animated.View>
-        )}
-
-        {/* Button */}
-        <Pressable
-          pointerEvents={state === 'connecting' ? 'none' : 'auto'}
-          onPress={state === 'connected' ? handleContinue : handleConnect}
-          style={styles.buttonPressable}
-          disabled={state === 'connecting'}
-        >
-          <LinearGradient
-            colors={['#C75C7A', '#8B1E3F']}
-            style={[styles.button, state === 'connecting' && styles.buttonDisabled]}
-          >
-            <Text style={styles.buttonText}>
-              {state === 'connected' ? 'Continuer' : 'Connexion automatique'}
-            </Text>
-          </LinearGradient>
-        </Pressable>
+      <View style={styles.hero}>
+        <LinearGradient colors={gradients.primary} style={styles.iconBubble}>
+          {state === "connected" ? (
+            <BluetoothConnected size={62} color={colors.surface} />
+          ) : (
+            <Bluetooth size={62} color={colors.surface} />
+          )}
+        </LinearGradient>
+        <Text style={styles.title}>Connecter la sonde</Text>
+        <Text style={styles.subtitle}>
+          Cette étape est nécessaire uniquement pour recueillir des mesures réelles. Vous pouvez continuer sans sonde et la connecter plus tard.
+        </Text>
       </View>
-    </View>
+
+      {error ? <ErrorState error={new Error(error)} onRetry={() => void scan()} /> : null}
+
+      <LinearGradient colors={gradients.primary} style={styles.scanButton}>
+        <Pressable style={styles.scanPressable} onPress={() => void scan()} disabled={state === "scanning"}>
+          <RefreshCcw size={19} color={colors.surface} />
+          <Text style={styles.scanText}>{state === "scanning" ? "Recherche..." : "Scanner"}</Text>
+        </Pressable>
+      </LinearGradient>
+
+      <Pressable style={styles.skipButton} onPress={skipDeviceConnection}>
+        <Text style={styles.skipText}>Passer pour l’instant</Text>
+      </Pressable>
+
+      <View style={styles.list}>
+        <Text style={styles.sectionTitle}>Périphériques détectés</Text>
+        {devices.length === 0 ? (
+          <Text style={styles.emptyText}>
+            Aucun périphérique détecté. Vérifiez que la sonde est allumée et proche du téléphone.
+          </Text>
+        ) : (
+          devices.map((device) => (
+            <Pressable
+              key={device.id}
+              style={styles.deviceCard}
+              onPress={() => void handleConnect(device.id)}
+              disabled={state === "connecting" || connectBackend.isPending}
+            >
+              <View>
+                <Text style={styles.deviceName}>{device.name}</Text>
+                <Text style={styles.deviceMeta}>Signal {device.rssi ?? "indisponible"}</Text>
+              </View>
+              <Text style={styles.connectText}>Connecter</Text>
+            </Pressable>
+          ))
+        )}
+      </View>
+
+      {connectedDevice ? (
+        <Text style={styles.connectedText}>Connecté à {connectedDevice.name}</Text>
+      ) : null}
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F5ECEC',
-    position: 'relative',
-    overflow: 'hidden',
+  container: { flex: 1, backgroundColor: colors.background },
+  content: { padding: spacing.xl, paddingTop: 56, paddingBottom: 80, gap: spacing.xl },
+  back: { color: colors.plum, fontWeight: "800" },
+  hero: { alignItems: "center", gap: spacing.md },
+  iconBubble: {
+    width: 132,
+    height: 132,
+    borderRadius: 66,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  buttonDisabled: {
-    opacity: 0.7,
+  title: { color: colors.plum, fontSize: 28, fontWeight: "900", textAlign: "center" },
+  subtitle: { color: colors.textMuted, textAlign: "center", lineHeight: 22 },
+  scanButton: { borderRadius: 999, overflow: "hidden" },
+  scanPressable: {
+    paddingVertical: 15,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.sm,
   },
-  backButton: {
-    position: 'absolute',
-    top: 50,
-    left: 24,
-    zIndex: 10,
+  scanText: { color: colors.surface, fontSize: 16, fontWeight: "900" },
+  skipButton: {
+    alignItems: "center",
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    paddingVertical: 14,
   },
-  backText: {
-    color: '#9B6A75',
-    fontSize: 16,
-    fontWeight: '600',
+  skipText: {
+    color: colors.plum,
+    fontSize: 15,
+    fontWeight: "900",
   },
-  pulseCircle1: {
-    position: 'absolute',
-    top: 200,
-    left: 50,
-    width: 140,
-    height: 140,
-    borderRadius: 70,
-    backgroundColor: 'rgba(212, 122, 146, 0.2)',
+  list: { gap: spacing.md },
+  sectionTitle: { color: colors.plum, fontSize: 18, fontWeight: "900" },
+  emptyText: {
+    color: colors.textMuted,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+    lineHeight: 20,
   },
-  pulseCircle2: {
-    position: 'absolute',
-    bottom: 300,
-    right: 60,
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: 'rgba(199, 92, 122, 0.15)',
+  deviceCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderWidth: 1,
+    borderColor: colors.border,
   },
-  pulseCircle3: {
-    position: 'absolute',
-    top: 400,
-    right: 80,
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: 'rgba(139, 30, 63, 0.1)',
-  },
-  main: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 32,
-  },
-  iconContainer: {
-    marginBottom: 32,
-  },
-  iconBg: {
-    width: 140,
-    height: 140,
-    borderRadius: 70,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.2,
-    shadowRadius: 16,
-    elevation: 12,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: '#5A1A30',
-    marginBottom: 12,
-    textAlign: 'center',
-  },
-  subtitle: {
-    fontSize: 16,
-    color: '#8A5A65',
-    textAlign: 'center',
-    marginBottom: 24,
-    lineHeight: 22,
-  },
-  batteryCard: {
-    backgroundColor: 'rgba(255, 255, 255, 0.8)',
-    padding: 24,
-    borderRadius: 24,
-    alignItems: 'center',
-    marginBottom: 32,
-    minHeight: 120,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 8,
-  },
-  batteryTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#5A1A30',
-    marginBottom: 16,
-  },
-  batteryRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  batteryText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#5A1A30',
-    marginBottom: 8,
-  },
-  batterySubtitle: {
-    fontSize: 14,
-    color: '#8A5A65',
-    textAlign: 'center',
-  },
-  button: {
-    borderRadius: 40,
-    paddingVertical: 20,
-    width: '100%',
-    maxWidth: 320,
-    alignItems: 'center',
-    shadowColor: '#C75C7A',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    elevation: 10,
-  },
-  buttonPressable: {
-    width: '100%',
-    maxWidth: 320,
-  },
-  button: {
-    borderRadius: 40,
-    paddingVertical: 20,
-    flex: 1,
-    alignItems: 'center',
-    shadowColor: '#C75C7A',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    elevation: 10,
-  },
-  buttonDisabled: {
-    opacity: 0.7,
-  },
-  buttonText: {
-    color: 'white',
-    fontWeight: '800',
-    fontSize: 18,
-  },
+  deviceName: { color: colors.text, fontWeight: "900", fontSize: 16 },
+  deviceMeta: { color: colors.textMuted, marginTop: 3 },
+  connectText: { color: colors.coral, fontWeight: "900" },
+  connectedText: { color: colors.success, textAlign: "center", fontWeight: "900" },
 });
-

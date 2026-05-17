@@ -1,13 +1,11 @@
-import React, { useRef } from 'react';
+import React from 'react';
 import {
   View,
   Text,
   StyleSheet,
   Pressable,
-  ScrollView,
   Dimensions,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import Animated, {
   useSharedValue,
@@ -17,9 +15,7 @@ import Animated, {
   interpolate,
   Extrapolate,
   runOnJS,
-  useDerivedValue,
   useAnimatedReaction,
-  Easing,
 } from 'react-native-reanimated';
 
 import * as Haptics from 'expo-haptics';
@@ -31,22 +27,22 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 const SLIDES = [
   {
-    title: 'Renforcez votre périnée en jouant',
-    description: 'Des exercices ludiques et progressifs pour retrouver tonus et confiance, à votre rythme.',
-    icon: '🎮',
-    color: '#D47A92',
+    title: 'Construisez un suivi fiable',
+    description: 'Votre espace reste vide tant qu’aucune session réelle n’est enregistrée.',
+    icon: '',
+    color: '#C95F7B',
   },
   {
-    title: 'Suivez vos progrès en temps réel',
-    description: 'Visualisez vos avancées jour après jour et ajustez votre entraînement selon vos résultats.',
-    icon: '📊',
-    color: '#A8B5D4',
+    title: 'Connectez la sonde quand vous êtes prêt',
+    description: 'Les mesures du périnée ne sont affichées que lorsqu’un capteur physique transmet des données.',
+    icon: '',
+    color: '#571534',
   },
   {
-    title: 'Rejoignez une communauté bienveillante',
-    description: 'Partagez vos expériences, obtenez du soutien et motivez-vous mutuellement.',
-    icon: '👥',
-    color: '#B8D4A8',
+    title: 'Gardez le contrôle du parcours',
+    description: 'Vous pouvez créer votre compte maintenant et connecter la sonde plus tard.',
+    icon: '',
+    color: '#F7C5C8',
   },
 ];
 
@@ -98,19 +94,19 @@ const OnboardingScreen = () => {
     }
   };
 
-const goToConnect = () => {
-    router.replace('/connect');
+const goToLogin = () => {
+    router.replace('/login');
   };
 
   const onSkipPress = () => {
     Haptics.selectionAsync();
-    goToConnect();
+    goToLogin();
   };
 
   const onButtonPress = () => {
     if (isFinishState) {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      goToConnect();
+      goToLogin();
     } else {
       scrollNext();
     }
@@ -191,4 +187,3 @@ const styles = StyleSheet.create({
 });
 
 export default OnboardingScreen;
-

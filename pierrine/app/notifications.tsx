@@ -13,7 +13,6 @@ const NotificationsScreen = () => {
   const [globalEnabled, setGlobalEnabled] = useState(true);
   const [time, setTime] = useState('09:00');
   const [days, setDays] = useState(['Lun', 'Mar', 'Mer', 'Jeu', 'Ven']);
-  const [selectedDay, setSelectedDay] = useState('Lun');
 
   const toggles = {
     trainingReminders: true,
@@ -133,10 +132,10 @@ const NotificationsScreen = () => {
         <View style={styles.previewCard}>
           <View style={styles.previewHeader}>
             <Ionicons name="notifications-outline" size={20} color="#9B5C6C" />
-            <Text style={styles.previewTime}>Aujourd'hui 09:00</Text>
+            <Text style={styles.previewTime}>{"Aujourd'hui 09:00"}</Text>
           </View>
           <Text style={styles.previewTitle}>Rappel entraînement</Text>
-          <Text style={styles.previewBody}>N'oubliez pas votre séance quotidienne !</Text>
+          <Text style={styles.previewBody}>{"N'oubliez pas votre séance quotidienne !"}</Text>
         </View>
       </View>
 

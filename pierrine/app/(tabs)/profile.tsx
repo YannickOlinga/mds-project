@@ -1,301 +1,256 @@
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  Pressable,
-  Switch,
-  ActivityIndicator,
-  Alert,
-} from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { router } from 'expo-router';
-import Ionicons from '@expo/vector-icons/Ionicons';
-import * as SecureStore from 'expo-secure-store';
+import { LinearGradient } from "expo-linear-gradient";
+import { Bell, LogOut, Moon, Settings, Trophy } from "lucide-react-native";
+import type { ReactNode } from "react";
+import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
+import { router } from "expo-router";
 
-interface Stats {
-  sessions: number;
-  xp: number;
-  level: number;
-  streak: number;
-}
-
-interface Settings {
-  sound: boolean;
-  voice: boolean;
-  vibration: boolean;
-  biometric: boolean;
-}
-
-interface UserData {
-  name: string;
-  program: string;
-  stats: Stats;
-}
-
-const STORAGE_KEYS = {
-  accessToken: 'accessToken',
-  refreshToken: 'refreshToken',
-  settings: 'userSettings',
-  userData: 'userData',
-} as const;
-
-const DEFAULT_SETTINGS: Settings = {
-  sound: true,
-  voice: true,
-  vibration: true,
-  biometric: false,
-};
+import ErrorState from "@/components/ui/ErrorState";
+import LoadingScreen from "@/components/ui/LoadingScreen";
+import { useToast } from "@/components/ui/Toast";
+import { colors, gradients } from "@/constants/theme/colors";
+import { radius, spacing } from "@/constants/theme/spacing";
+import { useProfileQuery, useUpdateProfileSettingsMutation } from "@/hooks/useApiQueries";
+import useAuthStore from "@/store/authStore";
+import { getErrorMessage } from "@/utils/apiError";
 
 export default function ProfileScreen() {
-  const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
-  const [userData, setUserData] = useState<UserData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const profile = useProfileQuery();
+  const updateSettings = useUpdateProfileSettingsMutation();
+  const logout = useAuthStore((state) => state.logout);
+  const showToast = useToast((state) => state.show);
 
-  // ✅ initials safe
-  const initials = useMemo(() => {
-    if (!userData?.name) return '';
-    const parts = userData.name.trim().split(' ');
-    return parts[0]?.[0] + (parts[1]?.[0] || '');
-  }, [userData?.name]);
+  if (profile.isLoading) {
+    return <LoadingScreen label="Chargement du profil" />;
+  }
 
-  const loadData = useCallback(async () => {
-    try {
-      setLoading(true);
+  if (profile.isError) {
+    return <ErrorState error={profile.error} onRetry={() => void profile.refetch()} />;
+  }
 
-      const accessToken = await SecureStore.getItemAsync(STORAGE_KEYS.accessToken);
+  const data = profile.data;
+  if (!data) {
+    return <ErrorState error={new Error("Profil indisponible.")} onRetry={() => void profile.refetch()} />;
+  }
 
-      if (!accessToken) {
-        router.replace('/login');
-        return;
-      }
+  const name = data.personalInfo.find((item) => item.label === "Nom")?.value ?? "Utilisateur";
+  const email = data.personalInfo.find((item) => item.label === "Email")?.value ?? "";
+  const objective = data.personalInfo.find((item) => item.label === "Objectif")?.value ?? "";
+  const initials = name
+    .split(" ")
+    .map((part) => part[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
 
-      // ✅ settings safe parse
-      const settingsString = await SecureStore.getItemAsync(STORAGE_KEYS.settings);
-      if (settingsString) {
-        try {
-          const parsed = JSON.parse(settingsString);
-          setSettings({ ...DEFAULT_SETTINGS, ...parsed });
-        } catch {
-          setSettings(DEFAULT_SETTINGS);
-        }
-      }
+  function saveSetting(payload: { reminders?: boolean; notifications?: boolean; darkMode?: boolean }) {
+    updateSettings.mutate(payload, {
+      onSuccess: () => showToast("Paramètres enregistrés"),
+      onError: (error) => {
+        showToast(getErrorMessage(error));
+        void profile.refetch();
+      },
+    });
+  }
 
-      // ✅ user data safe parse
-      const userDataString = await SecureStore.getItemAsync(STORAGE_KEYS.userData);
-      if (userDataString) {
-        try {
-          setUserData(JSON.parse(userDataString));
-        } catch {
-          setUserData(null);
-        }
-      } else {
-        setUserData({
-          name: 'Marie D.',
-          program: 'Programme Débutant',
-          stats: { sessions: 23, xp: 150, level: 3, streak: 7 },
-        });
-      }
-
-    } catch (error) {
-      console.error('Load error:', error);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  // ✅ FIX IMPORTANT : éviter bug toggle
-  const saveSetting = useCallback(async (key: keyof Settings, value: boolean) => {
-    const previous = settings;
-
-    try {
-      setSaving(true);
-
-      const updated = { ...settings, [key]: value };
-      setSettings(updated);
-
-      await SecureStore.setItemAsync(
-        STORAGE_KEYS.settings,
-        JSON.stringify(updated)
-      );
-    } catch (error) {
-      console.error('Save error:', error);
-      setSettings(previous); // rollback fiable
-    } finally {
-      setSaving(false);
-    }
-  }, [settings]);
-
-  const handleLogout = useCallback(async () => {
-    try {
-      setSaving(true);
-
-      await Promise.all([
-        SecureStore.deleteItemAsync(STORAGE_KEYS.accessToken),
-        SecureStore.deleteItemAsync(STORAGE_KEYS.refreshToken),
-        SecureStore.deleteItemAsync(STORAGE_KEYS.settings),
-        SecureStore.deleteItemAsync(STORAGE_KEYS.userData),
-      ]);
-
-      router.replace('/login');
-    } catch (error) {
-      console.error('Logout error:', error);
-      Alert.alert('Erreur', 'Déconnexion échouée');
-    } finally {
-      setSaving(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
-
-  if (loading) {
-    return (
-      <View style={[styles.container, styles.center]}>
-        <ActivityIndicator size="large" color="#6A1E3A" />
-      </View>
-    );
+  function confirmLogout() {
+    Alert.alert("Déconnexion", "Voulez-vous fermer votre session ?", [
+      { text: "Annuler", style: "cancel" },
+      { text: "Se déconnecter", style: "destructive", onPress: () => void logout() },
+    ]);
   }
 
   return (
-    <ScrollView style={styles.container}>
-      {/* Header */}
+    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.header}>
-        <View style={styles.avatar}>
+        <LinearGradient colors={gradients.primary} style={styles.avatar}>
           <Text style={styles.initials}>{initials}</Text>
-        </View>
-        <Text style={styles.name}>{userData?.name || 'Utilisateur'}</Text>
+        </LinearGradient>
+        <Text style={styles.name}>{name}</Text>
+        <Text style={styles.email}>{email}</Text>
+        <Text style={styles.level}>
+          {objective ? `Programme ${data.level.label}` : "Profil non personnalisé"}
+        </Text>
       </View>
 
-      {/* Stats */}
       <View style={styles.statsContainer}>
-        <Stat label="Sessions" value={userData?.stats.sessions} />
-        <Stat label="XP" value={userData?.stats.xp} />
-        <Stat label="Niveau" value={`Lv ${userData?.stats.level}`} />
-        <Stat label="Streak" value={userData?.stats.streak} />
+        <Stat label="Sessions" value={data.stats.sessions_total} />
+        <Stat label="Temps" value={data.stats.time_total_formatted} />
+        <Stat label="Streak" value={data.stats.streak_days} />
+        <Stat label="Badges" value={data.stats.badges_count} />
       </View>
 
-      {/* Program */}
-      {userData?.program && (
-        <Pressable style={styles.programCard} onPress={() => router.push('/training')}>
-          <LinearGradient colors={['#C75C7A', '#8B1E3F']} style={styles.gradient}>
-            <View style={styles.programContent}>
-              <Ionicons name="ribbon" size={28} color="white" />
-              <View>
-                <Text style={styles.programTitle}>{userData.program}</Text>
-                <Text style={styles.programSubtitle}>8/12 séances complétées</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={24} color="white" />
-            </View>
-          </LinearGradient>
-        </Pressable>
-      )}
-
-      {/* Settings */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Paramètres</Text>
-        <View style={styles.settingCard}>
-          {renderSetting('Son', 'volume-high', settings.sound, v => saveSetting('sound', v), saving)}
-          {renderSetting('Guidance vocale', 'mic', settings.voice, v => saveSetting('voice', v), saving)}
-          {renderSetting('Vibrations', 'notifications', settings.vibration, v => saveSetting('vibration', v), saving)}
-          {renderSetting('Biométrie', 'finger-print', settings.biometric, v => saveSetting('biometric', v), saving)}
+      <View style={styles.card}>
+        <View style={styles.rowTitle}>
+          <Trophy size={20} color={colors.plum} />
+          <Text style={styles.sectionTitle}>Informations</Text>
         </View>
+        {data.personalInfo.filter((item) => item.value).map((item) => (
+          <View key={item.label} style={styles.infoRow}>
+            <Text style={styles.infoLabel}>{item.label}</Text>
+            <Text style={styles.infoValue}>{item.value}</Text>
+          </View>
+        ))}
       </View>
 
-      {/* Navigation */}
-      <View style={styles.section}>
-        <NavRow title="Paramètres appareil" icon="settings-outline" onPress={() => router.push('/device-settings')} />
-        <NavRow title="Notifications" icon="notifications-outline" onPress={() => router.push('/notifications')} />
+      <View style={styles.card}>
+        <View style={styles.rowTitle}>
+          <Settings size={20} color={colors.plum} />
+          <Text style={styles.sectionTitle}>Paramètres</Text>
+        </View>
+        <SettingRow
+          icon={<Bell size={20} color={colors.plum} />}
+          label="Rappels"
+          value={data.settings.reminders}
+          disabled={updateSettings.isPending}
+          onValueChange={(reminders) => saveSetting({ reminders })}
+        />
+        <SettingRow
+          icon={<Bell size={20} color={colors.plum} />}
+          label="Notifications"
+          value={data.settings.notifications}
+          disabled={updateSettings.isPending}
+          onValueChange={(notifications) => saveSetting({ notifications })}
+        />
+        <SettingRow
+          icon={<Moon size={20} color={colors.plum} />}
+          label="Mode sombre"
+          value={data.settings.darkMode}
+          disabled={updateSettings.isPending}
+          onValueChange={(darkMode) => saveSetting({ darkMode })}
+        />
       </View>
 
-      {/* Logout */}
-      <Pressable
-        style={[styles.logoutButton, saving && styles.disabled]}
-        onPress={handleLogout}
-        disabled={saving}
-      >
-        <Ionicons name="log-out-outline" size={24} color="#9B5C6C" />
+      <View style={styles.card}>
+        <Text style={styles.sectionTitle}>Appareil</Text>
+        <Text style={styles.deviceName}>{data.device.device_name || "Aucune sonde connectée"}</Text>
+        <Text style={styles.deviceMeta}>
+          {data.device.connected ? `Connecté · ${data.device.battery_pct}%` : "Déconnecté"}
+        </Text>
+        <Pressable style={styles.secondaryButton} onPress={() => router.push("/device-settings")}>
+          <Text style={styles.secondaryText}>Paramètres appareil</Text>
+        </Pressable>
+      </View>
+
+      <Pressable style={styles.logoutButton} onPress={confirmLogout}>
+        <LogOut size={22} color={colors.danger} />
         <Text style={styles.logoutText}>Se déconnecter</Text>
-        {saving && <ActivityIndicator size="small" />}
       </Pressable>
-
-      <View style={{ height: 100 }} />
     </ScrollView>
   );
 }
 
-// ✅ composants propres
-
-function Stat({ label, value }: any) {
+function Stat({ label, value }: { label: string; value: string | number }) {
   return (
     <View style={styles.statCard}>
-      <Text style={styles.statNumber}>{value || 0}</Text>
+      <Text style={styles.statValue}>{value}</Text>
       <Text style={styles.statLabel}>{label}</Text>
     </View>
   );
 }
 
-function NavRow({ title, icon, onPress }: any) {
-  return (
-    <Pressable style={styles.navRow} onPress={onPress}>
-      <Ionicons name={icon} size={24} color="#6A1E3A" />
-      <Text style={styles.navTitle}>{title}</Text>
-      <Ionicons name="chevron-forward" size={20} color="#9B5C6C" />
-    </Pressable>
-  );
-}
-
-function renderSetting(label: string, icon: any, value: boolean, onChange: (v: boolean) => void, disabled: boolean) {
+function SettingRow({
+  icon,
+  label,
+  value,
+  disabled,
+  onValueChange,
+}: {
+  icon: ReactNode;
+  label: string;
+  value: boolean;
+  disabled: boolean;
+  onValueChange: (value: boolean) => void;
+}) {
   return (
     <View style={styles.settingRow}>
       <View style={styles.settingLeft}>
-        <Ionicons name={icon} size={24} color="#6A1E3A" />
-        <Text style={styles.settingTitle}>{label}</Text>
+        {icon}
+        <Text style={styles.settingLabel}>{label}</Text>
       </View>
-      <Switch value={value} onValueChange={onChange} disabled={disabled} />
+      <Switch
+        value={value}
+        onValueChange={onValueChange}
+        disabled={disabled}
+        trackColor={{ false: colors.border, true: colors.blush }}
+        thumbColor={value ? colors.coral : colors.surface}
+      />
     </View>
   );
 }
 
-// styles = identiques (tu peux garder les tiens)
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F5ECEC' },
-  center: { justifyContent: 'center', alignItems: 'center' },
-  header: { paddingTop: 60, paddingBottom: 32, alignItems: 'center' },
+  container: { flex: 1, backgroundColor: colors.background },
+  content: { padding: spacing.xl, paddingTop: 56, paddingBottom: 120, gap: spacing.xl },
+  header: { alignItems: "center", gap: 8 },
   avatar: {
-    width: 96, height: 96, borderRadius: 48,
-    backgroundColor: '#6A1E3A',
-    justifyContent: 'center', alignItems: 'center',
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 6,
   },
-  initials: { fontSize: 36, color: 'white', fontWeight: '800' },
-  name: { fontSize: 24, fontWeight: '800', color: '#5A1A30' },
-
-  statsContainer: { flexDirection: 'row', padding: 24, gap: 12 },
-  statCard: { flex: 1, backgroundColor: 'white', padding: 16, borderRadius: 16, alignItems: 'center' },
-  statNumber: { fontSize: 22, fontWeight: '800' },
-  statLabel: { fontSize: 12 },
-
-  programCard: { margin: 24, borderRadius: 20, overflow: 'hidden' },
-  gradient: { padding: 20 },
-  programContent: { flexDirection: 'row', alignItems: 'center', gap: 16 },
-  programTitle: { color: 'white', fontWeight: '700' },
-  programSubtitle: { color: 'rgba(255,255,255,0.7)' },
-
-  section: { paddingHorizontal: 24, marginBottom: 24 },
-  sectionTitle: { fontWeight: '700', marginBottom: 12 },
-
-  settingCard: { backgroundColor: 'white', borderRadius: 16 },
-  settingRow: { flexDirection: 'row', padding: 16, alignItems: 'center' },
-  settingLeft: { flexDirection: 'row', gap: 12, flex: 1 },
-  settingTitle: { fontWeight: '600' },
-
-  navRow: { flexDirection: 'row', padding: 16, backgroundColor: 'white', marginBottom: 8 },
-  navTitle: { flex: 1 },
-
-  logoutButton: { flexDirection: 'row', padding: 16, margin: 24, backgroundColor: 'white' },
-  logoutText: { flex: 1, textAlign: 'center' },
-  disabled: { opacity: 0.5 },
+  initials: { color: colors.surface, fontSize: 34, fontWeight: "900" },
+  name: { color: colors.plum, fontSize: 25, fontWeight: "900" },
+  email: { color: colors.textMuted },
+  level: {
+    color: colors.plum,
+    backgroundColor: colors.surfaceAlt,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 999,
+    fontWeight: "800",
+  },
+  statsContainer: { flexDirection: "row", gap: spacing.sm },
+  statCard: {
+    flex: 1,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  statValue: { color: colors.plum, fontSize: 17, fontWeight: "900", textAlign: "center" },
+  statLabel: { color: colors.textMuted, fontSize: 11, fontWeight: "700", marginTop: 3 },
+  card: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.xl,
+    padding: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: spacing.md,
+  },
+  rowTitle: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  sectionTitle: { color: colors.plum, fontSize: 18, fontWeight: "900" },
+  infoRow: { flexDirection: "row", justifyContent: "space-between", gap: spacing.md },
+  infoLabel: { color: colors.textMuted, fontWeight: "700" },
+  infoValue: { color: colors.text, fontWeight: "800", flex: 1, textAlign: "right" },
+  settingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: spacing.sm,
+  },
+  settingLeft: { flexDirection: "row", alignItems: "center", gap: spacing.md },
+  settingLabel: { color: colors.text, fontWeight: "800" },
+  deviceName: { color: colors.text, fontWeight: "900", fontSize: 16 },
+  deviceMeta: { color: colors.textMuted },
+  secondaryButton: {
+    borderRadius: 999,
+    backgroundColor: colors.surfaceAlt,
+    paddingVertical: 12,
+    alignItems: "center",
+  },
+  secondaryText: { color: colors.plum, fontWeight: "900" },
+  logoutButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.sm,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+  },
+  logoutText: { color: colors.danger, fontWeight: "900", fontSize: 16 },
 });

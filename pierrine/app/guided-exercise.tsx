@@ -4,26 +4,19 @@ import {
   Text,
   StyleSheet,
   Pressable,
-  Dimensions,
 } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withTiming,
-  withRepeat,
-  withSequence,
   interpolate,
   Extrapolate,
-  useDerivedValue,
-  runOnJS,
 } from 'react-native-reanimated';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const CIRCLE_SIZE = 280;
-const CENTER = SCREEN_WIDTH / 2;
 
 const PHASES = [
   { name: 'Respirez', duration: 5, scale: 1.0 },
@@ -43,8 +36,6 @@ export default function GuidedExercise() {
   const progress = useSharedValue(0);
   const circleScale = useSharedValue(1);
   const countdownSweep = useSharedValue(0);
-
-  const phase = useDerivedValue(() => currentPhase);
 
   useEffect(() => {
     if (isPlaying) {
@@ -72,7 +63,7 @@ export default function GuidedExercise() {
   useEffect(() => {
     circleScale.value = withTiming(PHASES[currentPhase].scale, { duration: 500 });
     countdownSweep.value = withTiming(1, { duration: 500 });
-  }, [currentPhase]);
+  }, [circleScale, countdownSweep, currentPhase]);
 
   const togglePlay = () => {
     Haptics.selectionAsync();
@@ -97,10 +88,6 @@ export default function GuidedExercise() {
         rotate: `${interpolate(countdownSweep.value, [0, 1], [0, 6.28], Extrapolate.CLAMP)}rad`,
       },
     ],
-  }));
-
-  const completeStyle = useAnimatedStyle(() => ({
-    opacity: cycles >= 5 ? 1 : 0,
   }));
 
   if (cycles >= 5 && !isPlaying) {
@@ -269,6 +256,4 @@ const styles = StyleSheet.create({
     color: '#9B5C6C',
   },
 });
-
-
 

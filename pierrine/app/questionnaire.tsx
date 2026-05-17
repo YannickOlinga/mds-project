@@ -15,6 +15,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
+import useAuthStore from '@/store/authStore';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -65,8 +66,6 @@ const QUESTIONS: Question[] = [
 type Answer = string | string[];
 type Answers = Partial<Record<typeof QUESTIONS[number]['id'], Answer>>;
 
-import useAuthStore from '@/store/authStore';
-
 export default function Questionnaire() {
   const [step, setStep] = useState(0);
   const [answers, setAnswers] = useState<Answers>({});
@@ -74,7 +73,6 @@ export default function Questionnaire() {
 
   const currentQuestion = QUESTIONS[step];
 
-  // ✅ FIX : le résumé est toujours considéré comme "répondu"
   const hasAnswer = currentQuestion.isSummary || !!answers[currentQuestion.id];
 
   const updateAnswer = useCallback((selected: string | string[]) => {
@@ -82,21 +80,13 @@ export default function Questionnaire() {
     setAnswers(prev => ({ ...prev, [currentQuestion.id]: selected }));
   }, [currentQuestion.id]);
 
+  const skipQuestionnaire = () => {
+    router.replace(authStore.isAuthenticated ? '/(tabs)' : '/login');
+  };
+
   const handleNext = () => {
     if (step === QUESTIONS.length - 1) {
-      console.log('Réponses:', answers);
-      
-      // Mock auth to prevent white screen / auth redirect
-      authStore.login({
-        accessToken: 'mock-qnr-token-' + Date.now(),
-        refreshToken: 'mock-refresh-' + Date.now(),
-      }, {
-        id: 'mock-qnr-user',
-        username: 'questionnaire-user',
-        email: 'qnr@example.com',
-      });
-      
-      router.push('/(tabs)');
+      router.replace(authStore.isAuthenticated ? '/(tabs)' : '/login');
     } else if (hasAnswer) {
       setStep(step + 1);
     }
@@ -117,7 +107,7 @@ export default function Questionnaire() {
   React.useEffect(() => {
     translateX.value = withTiming(0, { duration: 300 });
     opacity.value = withTiming(1, { duration: 300 });
-  }, [step]);
+  }, [opacity, step, translateX]);
 
   const summaryContent = (
     <View style={styles.summary}>
@@ -195,6 +185,9 @@ export default function Questionnaire() {
 
       {/* Buttons */}
       <View style={styles.buttonsContainer}>
+        <Pressable style={styles.skipButton} onPress={skipQuestionnaire}>
+          <Text style={styles.skipText}>Passer cette étape</Text>
+        </Pressable>
         {step > 0 && (
           <Pressable style={styles.backButton} onPress={handleBack}>
             <Text style={styles.backText}>Retour</Text>
@@ -325,9 +318,20 @@ const styles = StyleSheet.create({
   },
   buttonsContainer: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     padding: 32,
     gap: 16,
     backgroundColor: '#F9EDEE',
+  },
+  skipButton: {
+    width: '100%',
+    alignItems: 'center',
+    paddingVertical: 10,
+  },
+  skipText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#6A1E3A',
   },
   backButton: {
     flex: 1,

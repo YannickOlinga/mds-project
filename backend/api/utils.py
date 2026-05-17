@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import timedelta
 from typing import TypedDict
 
 from django.db import transaction
@@ -144,91 +144,31 @@ def earned_achievements(profile: Profile) -> set[str]:
 
 
 @transaction.atomic
-def ensure_demo_data(profile_id: int) -> Profile:
-    profile, _ = Profile.objects.get_or_create(
-        id=profile_id,
-        defaults={
-            "name": "Marie Dupont",
-            "email": "marie.dupont@email.com",
-            "age": 34,
-            "objective": "Renforcement du périnée",
-            "level_key": LEVEL_DEBUTANT,
-            "reminders": True,
-            "notifications": True,
-            "dark_mode": False,
-            "monthly_goal_sessions_target": 25,
-        },
-    )
-
-    DeviceStatus.objects.get_or_create(
-        profile=profile,
-        defaults={
-            "device_name": "Périnea #A4F2B",
-            "battery_pct": 85,
-            "signal_level": "Excellent",
-            "connected": True,
-        },
-    )
-
+def ensure_reference_data() -> None:
     if not ExerciseTemplate.objects.exists():
-        # Exercices (mêmes contenus que l'UI actuelle)
+        exercises = [
+            ("Contraction douce", "Contractez les muscles du plancher pelvien", 10, 1),
+            ("Relachement controle", "Detendez completement les muscles", 10, 2),
+            ("Contraction longue", "Maintenez la contraction cinq secondes", 10, 3),
+            ("Repetition rapide", "Realisez des contractions courtes et rapides", 15, 4),
+        ]
         ExerciseTemplate.objects.bulk_create(
             [
                 ExerciseTemplate(
-                    level_key=LEVEL_DEBUTANT,
-                    name="Contraction douce",
-                    description="Contractez les muscles du plancher pelvien",
-                    icon="💪",
-                    duration_minutes=10,
-                    demo_duration_seconds=10,
-                    sort_order=1,
-                ),
-                ExerciseTemplate(
-                    level_key=LEVEL_DEBUTANT,
-                    name="Relâchement",
-                    description="Détendez complètement les muscles",
-                    icon="🧘",
-                    duration_minutes=10,
-                    demo_duration_seconds=10,
-                    sort_order=2,
-                ),
-                ExerciseTemplate(
-                    level_key=LEVEL_DEBUTANT,
-                    name="Contraction longue",
-                    description="Maintenez la contraction 5 secondes",
-                    icon="⏱️",
-                    duration_minutes=10,
-                    demo_duration_seconds=10,
-                    sort_order=3,
-                ),
-                ExerciseTemplate(
-                    level_key=LEVEL_DEBUTANT,
-                    name="Répétition rapide",
-                    description="Contractions courtes et rapides",
-                    icon="⚡",
-                    duration_minutes=15,
-                    demo_duration_seconds=15,
-                    sort_order=4,
-                ),
+                    level_key=level_key,
+                    name=name,
+                    description=description,
+                    icon="activity",
+                    duration_minutes=duration,
+                    timer_duration_seconds=duration,
+                    sort_order=sort_order,
+                )
+                for level_key in (LEVEL_DEBUTANT, LEVEL_INTERMEDIAIRE, LEVEL_AVANCE)
+                for name, description, duration, sort_order in exercises
             ]
         )
-        # Clone pour les autres niveaux (pour l'instant)
-        for level_key in (LEVEL_INTERMEDIAIRE, LEVEL_AVANCE):
-            base = ExerciseTemplate.objects.filter(level_key=LEVEL_DEBUTANT).order_by("sort_order")
-            ExerciseTemplate.objects.bulk_create(
-                [
-                    ExerciseTemplate(
-                        level_key=level_key,
-                        name=e.name,
-                        description=e.description,
-                        icon=e.icon,
-                        duration_minutes=e.duration_minutes,
-                        demo_duration_seconds=e.demo_duration_seconds,
-                        sort_order=e.sort_order,
-                    )
-                    for e in base
-                ]
-            )
+    else:
+        ExerciseTemplate.objects.update(icon="activity")
 
     if not SessionTemplate.objects.exists():
         SessionTemplate.objects.bulk_create(
@@ -237,32 +177,23 @@ def ensure_demo_data(profile_id: int) -> Profile:
                     level_key=LEVEL_DEBUTANT,
                     title="Renforcement de base",
                     duration_minutes=15,
-                    color_hex="#B9657C",
+                    color_hex="#C95F7B",
                     sort_order=1,
                 ),
                 SessionTemplate(
                     level_key=LEVEL_INTERMEDIAIRE,
-                    title="Contrôle musculaire",
+                    title="Controle musculaire",
                     duration_minutes=20,
-                    color_hex="#6A1E3A",
+                    color_hex="#571534",
                     sort_order=2,
                 ),
                 SessionTemplate(
                     level_key=LEVEL_AVANCE,
-                    title="Endurance avancée",
+                    title="Endurance avancee",
                     duration_minutes=25,
-                    color_hex="#D4A5A5",
+                    color_hex="#F7C5C8",
                     sort_order=3,
                 ),
-            ]
-        )
-
-    if not TipTemplate.objects.exists():
-        TipTemplate.objects.bulk_create(
-            [
-                TipTemplate(text="Respirez profondément pendant les exercices", icon="🌬️", sort_order=1),
-                TipTemplate(text="Maintenez une posture droite", icon="🧘", sort_order=2),
-                TipTemplate(text="Hydratez-vous régulièrement", icon="💧", sort_order=3),
             ]
         )
 
@@ -272,120 +203,72 @@ def ensure_demo_data(profile_id: int) -> Profile:
                 AchievementTemplate(
                     code=ACH_PREMIERS_PAS,
                     title="Premiers pas",
-                    description="Première session complétée",
-                    icon="🎯",
+                    description="Premiere session completee",
+                    icon="target",
                 ),
                 AchievementTemplate(
                     code=ACH_REGULARITE,
-                    title="Régularité",
-                    description="7 jours consécutifs",
-                    icon="🔥",
+                    title="Regularite",
+                    description="Sept jours consecutifs",
+                    icon="calendar-check",
                 ),
                 AchievementTemplate(
                     code=ACH_ATHLETE,
-                    title="Athlète",
-                    description="10 sessions complétées",
-                    icon="🏆",
+                    title="Assiduite",
+                    description="Dix sessions completees",
+                    icon="award",
                 ),
                 AchievementTemplate(
                     code=ACH_MAITRE,
-                    title="Maître",
-                    description="50 sessions complétées",
-                    icon="👑",
+                    title="Expertise",
+                    description="Cinquante sessions completees",
+                    icon="shield-check",
                 ),
                 AchievementTemplate(
                     code=ACH_ECLAIR,
-                    title="Éclair",
-                    description="Session rapide terminée",
-                    icon="⚡",
+                    title="Session courte",
+                    description="Session rapide terminee",
+                    icon="timer",
                 ),
                 AchievementTemplate(
                     code=ACH_PERSERVERANCE,
-                    title="Persévérance",
-                    description="30 jours d'entraînement",
-                    icon="💎",
+                    title="Perseverance",
+                    description="Trente jours d'entrainement",
+                    icon="badge-check",
                 ),
             ]
         )
+    else:
+        icon_by_code = {
+            ACH_PREMIERS_PAS: "target",
+            ACH_REGULARITE: "calendar-check",
+            ACH_ATHLETE: "award",
+            ACH_MAITRE: "shield-check",
+            ACH_ECLAIR: "timer",
+            ACH_PERSERVERANCE: "badge-check",
+        }
+        for code, icon in icon_by_code.items():
+            AchievementTemplate.objects.filter(code=code).update(icon=icon)
 
-    if not Session.objects.filter(profile=profile).exists():
-        today = timezone.localdate()
-        # 7 jours consécutifs pour la streak
-        streak_minutes = [15, 20, 10, 15, 20, 10, 15]
-        sessions: list[Session] = []
 
-        for offset in range(7):
-            dt = timezone.make_aware(datetime(today.year, today.month, today.day, 9, 0, 0))
-            # Note: make_aware with date-time, but we shift by days below.
-            dt = dt - timedelta(days=offset)
-            duration_minutes = streak_minutes[offset % len(streak_minutes)]
-            level_key = LEVEL_DEBUTANT if duration_minutes <= 15 else LEVEL_INTERMEDIAIRE
-            if duration_minutes >= 25:
-                level_key = LEVEL_AVANCE
-            title = (
-                "Session rapide"
-                if duration_minutes <= 10
-                else "Renforcement de base"
-                if duration_minutes <= 15
-                else "Contrôle musculaire"
-                if duration_minutes <= 20
-                else "Endurance avancée"
-            )
-            sessions.append(
-                Session(
-                    profile=profile,
-                    title=title,
-                    level_key=level_key,
-                    duration_minutes=duration_minutes,
-                    duration_seconds=duration_minutes * 60,
-                    exercises_count=4,
-                    started_at=dt,
-                )
-            )
-
-        # Compléter pour atteindre ~23 sessions et satisfaire les badges
-        total_target = 23
-        k = 0
-        while len(sessions) < total_target:
-            days_ago = 1 + (k * 2) % 35
-            if k == 0:
-                # Span < 30j pour que "Persévérance" reste non obtenu
-                # (cohérent avec l'état de l'UI mock actuel).
-                days_ago = 25
-            dt = timezone.make_aware(datetime(today.year, today.month, today.day, 18, 0, 0)) - timedelta(days=days_ago)
-            duration_minutes = [15, 20, 10, 25][k % 4]
-            level_key = LEVEL_DEBUTANT if duration_minutes <= 15 else LEVEL_INTERMEDIAIRE
-            if duration_minutes >= 25:
-                level_key = LEVEL_AVANCE
-            title = (
-                "Session rapide"
-                if duration_minutes <= 10
-                else "Renforcement de base"
-                if duration_minutes <= 15
-                else "Contrôle musculaire"
-                if duration_minutes <= 20
-                else "Endurance avancée"
-            )
-            sessions.append(
-                Session(
-                    profile=profile,
-                    title=title,
-                    level_key=level_key,
-                    duration_minutes=duration_minutes,
-                    duration_seconds=duration_minutes * 60,
-                    exercises_count=4,
-                    started_at=dt,
-                )
-            )
-            k += 1
-
-        Session.objects.bulk_create(sessions)
-
+@transaction.atomic
+def ensure_profile_data(profile_id: int) -> Profile:
+    ensure_reference_data()
+    profile = Profile.objects.select_related("device_status").get(id=profile_id)
+    DeviceStatus.objects.get_or_create(
+        profile=profile,
+        defaults={
+            "device_name": "",
+            "battery_pct": 0,
+            "signal_level": "Indisponible",
+            "connected": False,
+        },
+    )
     return profile
 
 
 def build_dashboard(profile_id: int) -> dict:
-    profile = ensure_demo_data(profile_id)
+    profile = ensure_profile_data(profile_id)
     device = getattr(profile, "device_status", None)
     if device is None:
         device = DeviceStatus.objects.create(profile=profile)
@@ -435,11 +318,10 @@ def build_dashboard(profile_id: int) -> dict:
 
 
 def build_training_program(profile_id: int, level_key: str) -> dict:
-    profile = ensure_demo_data(profile_id)
+    profile = ensure_profile_data(profile_id)
 
     level_key = level_key if level_key in LEVEL_LABEL_BY_KEY else LEVEL_DEBUTANT
 
-    # Exercices "réels" mais pour la démo UI, on utilise demo_duration_seconds pour le timer.
     exercises = list(
         ExerciseTemplate.objects.filter(level_key=level_key).order_by("sort_order")
     )
@@ -472,7 +354,7 @@ def build_training_program(profile_id: int, level_key: str) -> dict:
                 "description": e.description,
                 "icon": e.icon,
                 "duration_minutes": e.duration_minutes,
-                "demo_duration_seconds": e.demo_duration_seconds,
+                "timer_duration_seconds": e.timer_duration_seconds,
             }
             for e in exercises
         ],
@@ -485,7 +367,7 @@ def build_training_program(profile_id: int, level_key: str) -> dict:
 
 
 def build_progress(profile_id: int) -> dict:
-    profile = ensure_demo_data(profile_id)
+    profile = ensure_profile_data(profile_id)
     today = timezone.localdate()
 
     weekly = compute_weekly_data(profile)
@@ -561,8 +443,7 @@ def build_progress(profile_id: int) -> dict:
 
 
 def build_profile(profile_id: int) -> dict:
-    profile = ensure_demo_data(profile_id)
-    today = timezone.localdate()
+    profile = ensure_profile_data(profile_id)
 
     total_minutes = compute_total_minutes(profile)
     total_sessions = compute_total_sessions(profile)
@@ -601,5 +482,3 @@ def build_profile(profile_id: int) -> dict:
             "label": level_label(profile.level_key),
         },
     }
-
-

@@ -1,501 +1,268 @@
-import { View, Text, StyleSheet, ScrollView, Pressable, Animated, Easing } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { router } from "expo-router";
-import { useState, useEffect, useRef } from "react";
-import { completeTraining, getTrainingProgram } from "@/lib/api";
+import { Activity, CheckCircle2, Clock, Play, Square } from "lucide-react-native";
+import type { ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 
-interface Exercise {
-  id: number;
-  name: string;
-  description: string;
-  duration_minutes: number;
-  demo_duration_seconds: number;
-  icon: string;
-}
+import EmptyState from "@/components/ui/EmptyState";
+import ErrorState from "@/components/ui/ErrorState";
+import LoadingScreen from "@/components/ui/LoadingScreen";
+import { useToast } from "@/components/ui/Toast";
+import { colors, gradients } from "@/constants/theme/colors";
+import { radius, spacing } from "@/constants/theme/spacing";
+import { useCompleteTrainingMutation, useTrainingProgramQuery } from "@/hooks/useApiQueries";
+import type { LevelKey } from "@/types/api";
+import { getErrorMessage } from "@/utils/apiError";
 
 export default function TrainingScreen() {
-  const [selectedLevel, setSelectedLevel] = useState<"debutant" | "intermediaire" | "avance">("debutant");
+  const [selectedLevel, setSelectedLevel] = useState<LevelKey>("debutant");
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentExercise, setCurrentExercise] = useState(0);
-  const [timeLeft, setTimeLeft] = useState(10);
-  const progressAnim = useRef(new Animated.Value(0)).current;
-
-  const [exercises, setExercises] = useState<Exercise[]>([
-    {
-      id: 1,
-      name: "Contraction douce",
-      description: "Contractez les muscles du plancher pelvien",
-      duration_minutes: 10,
-      demo_duration_seconds: 10,
-      icon: "💪",
-    },
-    {
-      id: 2,
-      name: "Relâchement",
-      description: "Détendez complètement les muscles",
-      duration_minutes: 10,
-      demo_duration_seconds: 10,
-      icon: "🧘",
-    },
-    {
-      id: 3,
-      name: "Contraction longue",
-      description: "Maintenez la contraction 5 secondes",
-      duration_minutes: 10,
-      demo_duration_seconds: 10,
-      icon: "⏱️",
-    },
-    {
-      id: 4,
-      name: "Répétition rapide",
-      description: "Contractions courtes et rapides",
-      duration_minutes: 15,
-      demo_duration_seconds: 15,
-      icon: "⚡",
-    },
-  ]);
-
-  const [levels, setLevels] = useState<
-    Array<{
-      key: "debutant" | "intermediaire" | "avance";
-      label: string;
-      color: string;
-      sessions: number;
-    }>
-  >([
-    { key: "debutant", label: "Débutant", color: "#B9657C", sessions: 5 },
-    { key: "intermediaire", label: "Intermédiaire", color: "#6A1E3A", sessions: 12 },
-    { key: "avance", label: "Avancé", color: "#5A1A30", sessions: 20 },
-  ]);
-
-  const [objectivePercent, setObjectivePercent] = useState(85);
-  const [totalDurationMinutes, setTotalDurationMinutes] = useState(45);
-
-  const progress = progressAnim.interpolate({
-    inputRange: [0, 100],
-    outputRange: ["0%", "100%"],
-  });
-
+  const [timeLeft, setTimeLeft] = useState(0);
   const didCompleteRef = useRef(false);
+  const progress = useSharedValue(0);
+  const showToast = useToast((state) => state.show);
+
+  const program = useTrainingProgramQuery(selectedLevel);
+  const complete = useCompleteTrainingMutation();
+  const exercises = useMemo(() => program.data?.exercises ?? [], [program.data?.exercises]);
+  const activeExercise = exercises[currentExercise];
+
+  const totalDemoSeconds = useMemo(
+    () => exercises.reduce((sum, exercise) => sum + exercise.timer_duration_seconds, 0),
+    [exercises]
+  );
 
   useEffect(() => {
-    didCompleteRef.current = false;
     setIsPlaying(false);
     setCurrentExercise(0);
-    progressAnim.setValue(0);
-
-    getTrainingProgram(selectedLevel, 1)
-      .then((data) => {
-        setExercises(data.exercises);
-        setLevels(data.levels);
-        setObjectivePercent(data.summary.objective_percent);
-        setTotalDurationMinutes(data.summary.total_duration_minutes);
-
-        const first = data.exercises?.[0];
-        if (first) setTimeLeft(first.demo_duration_seconds);
-      })
-      .catch(() => {
-        // Fallback: garde les données mock locales.
-      });
-  }, [selectedLevel, progressAnim]);
-
-  const startExercise = () => {
-    if (exercises.length === 0) return;
     didCompleteRef.current = false;
-    setIsPlaying(true);
-    setCurrentExercise(0);
-    const first = exercises[0];
-    setTimeLeft(first.demo_duration_seconds);
-    progressAnim.setValue(0);
-    Animated.timing(progressAnim, {
-      toValue: 100,
-      duration: first.demo_duration_seconds * 1000,
-      easing: Easing.linear,
-      useNativeDriver: false,
-    }).start();
-  };
+    progress.value = 0;
+    setTimeLeft(exercises[0]?.timer_duration_seconds ?? 0);
+  }, [exercises, progress]);
 
   useEffect(() => {
-    if (isPlaying && timeLeft > 0) {
-      const timer = setTimeout(() => {
-        setTimeLeft(timeLeft - 1);
-      }, 1000);
-      return () => clearTimeout(timer);
-    } else if (isPlaying && timeLeft === 0) {
+    if (!isPlaying || !activeExercise) return;
+
+    if (timeLeft <= 0) {
       if (currentExercise < exercises.length - 1) {
         const nextIndex = currentExercise + 1;
         setCurrentExercise(nextIndex);
-        const next = exercises[nextIndex];
-        setTimeLeft(next.demo_duration_seconds);
-        progressAnim.setValue(0);
-
-        Animated.timing(progressAnim, {
-          toValue: 100,
-          duration: next.demo_duration_seconds * 1000,
-          easing: Easing.linear,
-          useNativeDriver: false,
-        }).start();
-      } else {
-        setIsPlaying(false);
-        progressAnim.setValue(0);
-
-        if (!didCompleteRef.current) {
-          didCompleteRef.current = true;
-          completeTraining(selectedLevel, exercises.length, 1).catch(() => {
-            // Ignore si backend injoignable.
-          });
-        }
+        setTimeLeft(exercises[nextIndex].timer_duration_seconds);
+        return;
       }
+
+      setIsPlaying(false);
+      progress.value = 0;
+
+      if (!didCompleteRef.current) {
+        didCompleteRef.current = true;
+        complete.mutate(
+          { levelKey: selectedLevel, exercisesCount: exercises.length },
+          {
+            onSuccess: () => showToast("Session enregistrée"),
+            onError: (error) => showToast(getErrorMessage(error)),
+          }
+        );
+      }
+      return;
     }
-  }, [isPlaying, timeLeft, currentExercise, exercises.length, selectedLevel, exercises]);
+
+    const timer = setTimeout(() => setTimeLeft((value) => value - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [activeExercise, complete, currentExercise, exercises, isPlaying, progress, selectedLevel, showToast, timeLeft]);
+
+  useEffect(() => {
+    if (!isPlaying || totalDemoSeconds === 0) return;
+    progress.value = withTiming(1, {
+      duration: totalDemoSeconds * 1000,
+      easing: Easing.linear,
+    });
+  }, [isPlaying, progress, totalDemoSeconds]);
+
+  const progressStyle = useAnimatedStyle(() => ({
+    width: `${Math.max(0, Math.min(1, progress.value)) * 100}%`,
+  }));
+
+  if (program.isLoading) {
+    return <LoadingScreen label="Chargement du programme" />;
+  }
+
+  if (program.isError) {
+    return <ErrorState error={program.error} onRetry={() => void program.refetch()} />;
+  }
+
+  if (!program.data || exercises.length === 0) {
+    return <EmptyState title="Aucun entraînement" message="Aucun exercice n’est disponible pour ce niveau." />;
+  }
+
+  function startSession() {
+    if (exercises.length === 0) return;
+    didCompleteRef.current = false;
+    setCurrentExercise(0);
+    setTimeLeft(exercises[0].timer_duration_seconds);
+    progress.value = 0;
+    setIsPlaying(true);
+  }
+
+  function stopSession() {
+    setIsPlaying(false);
+    progress.value = 0;
+    setTimeLeft(activeExercise?.timer_duration_seconds ?? 0);
+  }
 
   return (
-    <ScrollView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <Pressable onPress={() => router.back()}>
-          <Text style={styles.back}>← Retour</Text>
-        </Pressable>
-        <Text style={styles.headerTitle}>Entraînement</Text>
+    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      <View>
+        <Text style={styles.title}>Entraînement</Text>
+        <Text style={styles.subtitle}>Exercices disponibles depuis le backend</Text>
       </View>
 
-      {/* Level Selection */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Choisir votre niveau</Text>
-        <View style={styles.levelContainer}>
-          {levels.map((level) => (
-            <Pressable
-              key={level.key}
-              style={[
-                styles.levelCard,
-                selectedLevel === level.key && { backgroundColor: level.color },
-              ]}
-              onPress={() => setSelectedLevel(level.key as "debutant" | "intermediaire" | "avance")}
-            >
-              <Text
-                style={[
-                  styles.levelLabel,
-                  selectedLevel === level.key && { color: "#FFF5F5" },
-                ]}
-              >
-                {level.label}
-              </Text>
-              <Text
-                style={[
-                  styles.levelSessions,
-                  selectedLevel === level.key && { color: "#F5D5DD" },
-                ]}
-              >
-                {level.sessions} sessions
-              </Text>
-            </Pressable>
-          ))}
-        </View>
-      </View>
-
-      {/* Exercise Preview */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Programme du jour</Text>
-        <View style={styles.exerciseList}>
-          {exercises.map((exercise, index) => (
-            <View
-              key={exercise.id}
-              style={[
-                styles.exerciseCard,
-                currentExercise === index && isPlaying && styles.activeExercise,
-              ]}
-            >
-              <View style={styles.exerciseIcon}>
-                <Text style={styles.exerciseIconText}>{exercise.icon}</Text>
-              </View>
-              <View style={styles.exerciseInfo}>
-                <Text style={styles.exerciseName}>{exercise.name}</Text>
-                <Text style={styles.exerciseDesc}>{exercise.description}</Text>
-              </View>
-              <View style={styles.exerciseDuration}>
-                <Text style={styles.durationText}>
-                  {exercise.duration_minutes} min
-                </Text>
-              </View>
-            </View>
-          ))}
-        </View>
-      </View>
-
-      {/* Training Summary */}
-      <View style={styles.summaryCard}>
-        <View style={styles.summaryItem}>
-          <Text style={styles.summaryIcon}>⏱️</Text>
-            <Text style={styles.summaryValue}>{totalDurationMinutes} min</Text>
-          <Text style={styles.summaryLabel}>Durée totale</Text>
-        </View>
-        <View style={styles.summaryDivider} />
-        <View style={styles.summaryItem}>
-          <Text style={styles.summaryIcon}>📊</Text>
-            <Text style={styles.summaryValue}>{exercises.length}</Text>
-          <Text style={styles.summaryLabel}>Exercices</Text>
-        </View>
-        <View style={styles.summaryDivider} />
-        <View style={styles.summaryItem}>
-          <Text style={styles.summaryIcon}>🎯</Text>
-            <Text style={styles.summaryValue}>{objectivePercent}%</Text>
-          <Text style={styles.summaryLabel}>Objectif</Text>
-        </View>
-      </View>
-
-      {/* Start Button */}
-      <View style={styles.buttonContainer}>
-        <LinearGradient
-          colors={["#B9657C", "#6A1E3A"]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 0 }}
-          style={styles.startButton}
-        >
-          <Pressable onPress={startExercise}>
-            <Text style={styles.startButtonText}>
-              {isPlaying ? "En cours..." : "Commencer l'entraînement"}
+      <View style={styles.levelContainer}>
+        {program.data.levels.map((level) => (
+          <Pressable
+            key={level.key}
+            style={[styles.levelCard, selectedLevel === level.key && styles.levelCardActive]}
+            onPress={() => setSelectedLevel(level.key)}
+            disabled={isPlaying}
+          >
+            <Text style={[styles.levelLabel, selectedLevel === level.key && styles.levelLabelActive]}>
+              {level.label}
+            </Text>
+            <Text style={[styles.levelSessions, selectedLevel === level.key && styles.levelSessionsActive]}>
+              {level.sessions} sessions
             </Text>
           </Pressable>
-        </LinearGradient>
+        ))}
       </View>
 
-      {/* Progress Indicator */}
-      {isPlaying && (
-        <View style={styles.progressSection}>
-          <View style={styles.currentExerciseCard}>
-            <Text style={styles.currentExerciseLabel}>Exercice en cours</Text>
-            <Text style={styles.currentExerciseName}>
-              {exercises[currentExercise].name}
-            </Text>
-            <Text style={styles.currentExerciseIcon}>
-              {exercises[currentExercise].icon}
-            </Text>
-            <View style={styles.timerCircle}>
-              <Text style={styles.timerText}>{timeLeft}s</Text>
+      <View style={styles.summaryCard}>
+        <Summary icon={<Clock size={18} color={colors.plum} />} value={`${program.data.summary.total_duration_minutes} min`} label="Durée réelle" />
+        <Summary icon={<CheckCircle2 size={18} color={colors.plum} />} value={exercises.length} label="Exercices" />
+        <Summary icon={<Play size={18} color={colors.plum} />} value={`${program.data.summary.objective_percent}%`} label="Objectif" />
+      </View>
+
+      <View style={styles.exerciseList}>
+        {exercises.map((exercise, index) => (
+            <View key={exercise.id} style={[styles.exerciseCard, isPlaying && currentExercise === index && styles.exerciseCardActive]}>
+              <View style={styles.exerciseIcon}>
+                <Activity size={20} color={colors.plum} />
+              </View>
+            <View style={styles.flex}>
+              <Text style={styles.exerciseName}>{exercise.name}</Text>
+              <Text style={styles.exerciseDescription}>{exercise.description}</Text>
             </View>
-            <View style={styles.progressBar}>
-              <Animated.View
-                style={[styles.progressFill, { width: progress }]}
-              />
-            </View>
+            <Text style={styles.exerciseDuration}>{exercise.duration_minutes} min</Text>
+          </View>
+        ))}
+      </View>
+
+      {isPlaying && activeExercise ? (
+        <View style={styles.playerCard}>
+          <Text style={styles.playerLabel}>Exercice en cours</Text>
+          <Text style={styles.playerTitle}>{activeExercise.name}</Text>
+          <Text style={styles.timer}>{timeLeft}s</Text>
+          <View style={styles.progressTrack}>
+            <Animated.View style={[styles.progressFill, progressStyle]} />
           </View>
         </View>
-      )}
+      ) : null}
 
-      {/* Bottom spacing */}
-      <View style={{ height: 100 }} />
+      <LinearGradient colors={gradients.primary} style={styles.actionButton}>
+        <Pressable style={styles.actionPressable} onPress={isPlaying ? stopSession : startSession}>
+          {isPlaying ? <Square size={20} color={colors.surface} /> : <Play size={20} color={colors.surface} />}
+          <Text style={styles.actionText}>{isPlaying ? "Arrêter" : "Commencer"}</Text>
+        </Pressable>
+      </LinearGradient>
     </ScrollView>
   );
 }
 
+function Summary({ icon, value, label }: { icon: ReactNode; value: string | number; label: string }) {
+  return (
+    <View style={styles.summaryItem}>
+      {icon}
+      <Text style={styles.summaryValue}>{value}</Text>
+      <Text style={styles.summaryLabel}>{label}</Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#F5ECEC",
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 24,
-    paddingTop: 50,
-    paddingBottom: 20,
-  },
-  back: {
-    color: "#9B6A75",
-    fontSize: 16,
-  },
-  headerTitle: {
-    flex: 1,
-    textAlign: "center",
-    fontSize: 20,
-    fontWeight: "800",
-    color: "#5A1A30",
-    marginRight: 40,
-  },
-  section: {
-    paddingHorizontal: 24,
-    marginBottom: 24,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#5A1A30",
-    marginBottom: 12,
-  },
-  levelContainer: {
-    flexDirection: "row",
-    gap: 10,
-  },
+  container: { flex: 1, backgroundColor: colors.background },
+  content: { padding: spacing.xl, paddingTop: 56, paddingBottom: 120, gap: spacing.xl },
+  title: { fontSize: 28, fontWeight: "900", color: colors.plum },
+  subtitle: { color: colors.textMuted, marginTop: 4 },
+  levelContainer: { flexDirection: "row", gap: spacing.sm },
   levelCard: {
     flex: 1,
-    backgroundColor: "#FFF5F5",
-    borderRadius: 16,
-    padding: 14,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.md,
     alignItems: "center",
-    borderWidth: 2,
-    borderColor: "transparent",
+    borderWidth: 1,
+    borderColor: colors.border,
   },
-  levelLabel: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#5A1A30",
+  levelCardActive: { backgroundColor: colors.plum, borderColor: colors.plum },
+  levelLabel: { color: colors.plum, fontWeight: "900", fontSize: 13 },
+  levelLabelActive: { color: colors.surface },
+  levelSessions: { color: colors.textMuted, fontSize: 11, marginTop: 4 },
+  levelSessionsActive: { color: colors.blush },
+  summaryCard: {
+    flexDirection: "row",
+    backgroundColor: colors.surface,
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.lg,
   },
-  levelSessions: {
-    fontSize: 11,
-    color: "#8A5A65",
-    marginTop: 4,
-  },
-  exerciseList: {
-    gap: 10,
-  },
+  summaryItem: { flex: 1, alignItems: "center", gap: 4 },
+  summaryValue: { color: colors.plum, fontSize: 18, fontWeight: "900" },
+  summaryLabel: { color: colors.textMuted, fontSize: 11, fontWeight: "700" },
+  exerciseList: { gap: spacing.md },
   exerciseCard: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#FFF5F5",
-    borderRadius: 16,
-    padding: 16,
+    gap: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
     borderWidth: 1,
-    borderColor: "#EAD7DA",
+    borderColor: colors.border,
   },
-  activeExercise: {
-    borderColor: "#B9657C",
-    backgroundColor: "#FFF0F3",
-  },
+  exerciseCardActive: { borderColor: colors.coral, backgroundColor: colors.surfaceAlt },
   exerciseIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "#EAD7DA",
-    justifyContent: "center",
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: colors.surfaceAlt,
     alignItems: "center",
-    marginRight: 12,
+    justifyContent: "center",
   },
-  exerciseIconText: {
-    fontSize: 20,
+  exerciseName: { color: colors.text, fontSize: 16, fontWeight: "900" },
+  exerciseDescription: { color: colors.textMuted, fontSize: 13, marginTop: 3 },
+  exerciseDuration: { color: colors.plum, fontWeight: "800" },
+  playerCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.xl,
+    padding: spacing.xl,
+    alignItems: "center",
+    gap: spacing.sm,
   },
-  exerciseInfo: {
-    flex: 1,
-  },
-  exerciseName: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: "#5A1A30",
-  },
-  exerciseDesc: {
-    fontSize: 12,
-    color: "#8A5A65",
-    marginTop: 2,
-  },
-  exerciseDuration: {
-    backgroundColor: "#EAD7DA",
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  durationText: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#6A1E3A",
-  },
-  summaryCard: {
+  playerLabel: { color: colors.textMuted, fontWeight: "700" },
+  playerTitle: { color: colors.plum, fontSize: 22, fontWeight: "900", textAlign: "center" },
+  timer: { color: colors.coral, fontSize: 36, fontWeight: "900" },
+  progressTrack: { width: "100%", height: 10, backgroundColor: colors.border, borderRadius: 999, overflow: "hidden" },
+  progressFill: { height: "100%", backgroundColor: colors.coral, borderRadius: 999 },
+  actionButton: { borderRadius: 999, overflow: "hidden" },
+  actionPressable: {
+    paddingVertical: 16,
+    alignItems: "center",
+    justifyContent: "center",
     flexDirection: "row",
-    justifyContent: "space-around",
-    backgroundColor: "#6A1E3A",
-    borderRadius: 20,
-    padding: 20,
-    marginHorizontal: 24,
-    marginBottom: 24,
+    gap: spacing.sm,
   },
-  summaryItem: {
-    alignItems: "center",
-  },
-  summaryIcon: {
-    fontSize: 20,
-    marginBottom: 6,
-  },
-  summaryValue: {
-    fontSize: 20,
-    fontWeight: "800",
-    color: "#FFF5F5",
-  },
-  summaryLabel: {
-    fontSize: 11,
-    color: "#F5D5DD",
-    marginTop: 2,
-  },
-  summaryDivider: {
-    width: 1,
-    height: 40,
-    backgroundColor: "#8A3A5A",
-  },
-  buttonContainer: {
-    paddingHorizontal: 24,
-    marginBottom: 24,
-  },
-  startButton: {
-    borderRadius: 40,
-    paddingVertical: 18,
-    alignItems: "center",
-  },
-  startButtonText: {
-    color: "white",
-    fontWeight: "800",
-    fontSize: 18,
-  },
-  progressSection: {
-    paddingHorizontal: 24,
-  },
-  currentExerciseCard: {
-    backgroundColor: "#FFF5F5",
-    borderRadius: 24,
-    padding: 24,
-    alignItems: "center",
-    borderWidth: 2,
-    borderColor: "#B9657C",
-  },
-  currentExerciseLabel: {
-    fontSize: 12,
-    color: "#8A5A65",
-    textTransform: "uppercase",
-    letterSpacing: 1,
-  },
-  currentExerciseName: {
-    fontSize: 22,
-    fontWeight: "800",
-    color: "#5A1A30",
-    marginTop: 8,
-    marginBottom: 16,
-  },
-  currentExerciseIcon: {
-    fontSize: 48,
-    marginBottom: 20,
-  },
-  timerCircle: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    borderWidth: 4,
-    borderColor: "#B9657C",
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 20,
-  },
-  timerText: {
-    fontSize: 28,
-    fontWeight: "800",
-    color: "#6A1E3A",
-  },
-  progressBar: {
-    width: "100%",
-    height: 8,
-    backgroundColor: "#EAD7DA",
-    borderRadius: 4,
-    overflow: "hidden",
-  },
-  progressFill: {
-    height: "100%",
-    backgroundColor: "#B9657C",
-    borderRadius: 4,
-  },
+  actionText: { color: colors.surface, fontSize: 17, fontWeight: "900" },
+  flex: { flex: 1 },
 });
-

@@ -2,17 +2,18 @@ import { useState } from "react";
 import { View, Text, StyleSheet, TextInput, Pressable, ActivityIndicator } from "react-native";
 import { router } from "expo-router";
 
-import { login } from "@/lib/api";
-import { saveTokens } from "@/lib/auth";
+import { colors, gradients } from "@/constants/theme/colors";
 import useAuthStore from "@/store/authStore";
+import { getErrorMessage } from "@/utils/apiError";
 
 export default function LoginScreen() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const login = useAuthStore((state) => state.login);
 
-async function handleLogin() {
+  async function handleLogin() {
     if (!username.trim() || !password) {
       setError('Nom et mot de passe requis');
       return;
@@ -20,25 +21,12 @@ async function handleLogin() {
 
     setError(null);
     setLoading(true);
-    const auth = useAuthStore.getState();
 
     try {
-      // ✅ MOCK for dev - bypass backend
-      const mockData = {
-        accessToken: 'mock-login-' + Date.now(),
-        refreshToken: 'mock-refresh-' + Date.now(),
-        userEmail: username.trim() + '@example.com'
-      };
-      
-      await saveTokens(mockData);
-      auth.login(mockData, {
-        id: 'mock-login-user',
-        username: username.trim(),
-        email: mockData.userEmail
-      });
-      router.replace("/(tabs)");
-    } catch (e: any) {
-      setError(e.message || 'Login échoué');
+      await login(username.trim(), password);
+      router.replace("/questionnaire");
+    } catch (e: unknown) {
+      setError(getErrorMessage(e));
     } finally {
       setLoading(false);
     }
@@ -66,9 +54,7 @@ async function handleLogin() {
       {error && <Text style={styles.errorText}>{error}</Text>}
 
       <Pressable style={styles.button} onPress={handleLogin} disabled={loading}>
-        <Text style={styles.buttonText}>
-          {loading ? "Connexion..." : "Se connecter"}
-        </Text>
+        {loading ? <ActivityIndicator color={colors.surface} /> : <Text style={styles.buttonText}>Se connecter</Text>}
       </Pressable>
 
       <Pressable onPress={() => router.replace("/register")}>
@@ -81,47 +67,46 @@ async function handleLogin() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F5ECEC",
+    backgroundColor: colors.background,
     padding: 24,
     justifyContent: "center",
   },
   title: {
     fontSize: 28,
     fontWeight: "800",
-    color: "#5A1A30",
+    color: colors.plum,
     marginBottom: 24,
   },
   input: {
-    backgroundColor: "#FFF5F5",
+    backgroundColor: colors.surface,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: "#EAD7DA",
+    borderColor: colors.border,
     paddingHorizontal: 16,
     paddingVertical: 12,
     marginBottom: 12,
   },
   button: {
-    backgroundColor: "#6A1E3A",
+    backgroundColor: gradients.primary[1],
     borderRadius: 16,
     paddingVertical: 14,
     alignItems: "center",
     marginTop: 8,
   },
   buttonText: {
-    color: "#FFF5F5",
+    color: colors.surface,
     fontWeight: "800",
     fontSize: 16,
   },
   errorText: {
-    color: "#B00020",
+    color: colors.danger,
     marginTop: 8,
     marginBottom: 8,
   },
   linkText: {
     marginTop: 18,
-    color: "#B9657C",
+    color: colors.coral,
     fontWeight: "700",
     textAlign: "center",
   },
 });
-

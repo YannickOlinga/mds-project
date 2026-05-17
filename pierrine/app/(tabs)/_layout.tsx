@@ -1,7 +1,7 @@
 import React from "react";
 import { Platform, StyleSheet, View, Text, ActivityIndicator } from "react-native";
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { Tabs } from "expo-router";
+import { Redirect, Tabs } from "expo-router";
 import useAuthStore from "@/store/authStore";
 
 export default function TabLayout() {
@@ -17,17 +17,7 @@ if (auth.loading) {
   }
   
   if (!auth.isAuthenticated) {
-    // Mock guest login to prevent loop/white screen
-    auth.login(
-      { accessToken: 'guest-mock-' + Date.now() },
-      { id: 'guest', username: 'Invité', email: 'guest@example.com' }
-    );
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#6A1E3A" />
-        <Text style={styles.loadingText}>Connexion invitée...</Text>
-      </View>
-    );
+    return <Redirect href="/login" />;
   }
 
   return (
@@ -123,4 +113,3 @@ const styles = StyleSheet.create({
       fontWeight: '600',
     },
   });
-
