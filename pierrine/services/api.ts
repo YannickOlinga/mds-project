@@ -8,6 +8,10 @@ import { AppError } from "@/utils/apiError";
 type RetryConfig = InternalAxiosRequestConfig & { _retry?: boolean };
 
 function resolveApiBaseUrl() {
+  if (process.env.EXPO_PUBLIC_API_BASE_URL) {
+    return process.env.EXPO_PUBLIC_API_BASE_URL;
+  }
+
   if (Platform.OS === "web") {
     return "http://localhost:8000";
   }

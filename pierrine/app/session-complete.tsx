@@ -12,7 +12,7 @@ export default function SessionComplete() {
         <CheckCircle2 size={48} color={colors.success} />
         <Text style={styles.title}>Session enregistree</Text>
         <Text style={styles.message}>
-          {"Les resultats affiches dans l'application proviennent uniquement de l'historique backend."}
+          {"Vos progrès sont mis à jour à partir de vos séances terminées."}
         </Text>
         <Pressable style={styles.button} onPress={() => router.replace("/(tabs)/progress")}>
           <Text style={styles.buttonText}>Voir la progression</Text>

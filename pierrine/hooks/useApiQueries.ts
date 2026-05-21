@@ -8,9 +8,10 @@ import {
   getMeProfile,
   getProgress,
   getTrainingProgram,
+  updateMeProfile,
   updateMeProfileSettings,
 } from "@/services/endpoints";
-import type { LevelKey } from "@/types/api";
+import type { LevelKey, ProfileUpdatePayload } from "@/types/api";
 
 export const queryKeys = {
   dashboard: ["dashboard"] as const,
@@ -50,6 +51,18 @@ export function useUpdateProfileSettingsMutation() {
     onSuccess: (profile) => {
       queryClient.setQueryData(queryKeys.profile, profile);
       void queryClient.invalidateQueries({ queryKey: queryKeys.dashboard });
+    },
+  });
+}
+
+export function useUpdateProfileMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: ProfileUpdatePayload) => updateMeProfile(payload),
+    onSuccess: (profile) => {
+      queryClient.setQueryData(queryKeys.profile, profile);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.dashboard });
+      void queryClient.invalidateQueries({ queryKey: ["training"] });
     },
   });
 }

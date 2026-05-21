@@ -27,6 +27,12 @@ class Profile(models.Model):
     age = models.PositiveIntegerField()
     objective = models.CharField(max_length=255)
     level_key = models.CharField(max_length=32, choices=LEVEL_CHOICES, default=LEVEL_DEBUTANT)
+    training_frequency = models.CharField(max_length=80, blank=True, default="")
+    symptoms = models.JSONField(default=list, blank=True)
+    birth_context = models.CharField(max_length=120, blank=True, default="")
+    has_probe = models.BooleanField(null=True, blank=True)
+    health_notes = models.TextField(blank=True, default="")
+    onboarding_completed = models.BooleanField(default=False)
 
     reminders = models.BooleanField(default=True)
     notifications = models.BooleanField(default=True)

@@ -46,7 +46,7 @@ export default function ProgressScreen() {
       </View>
 
       <View style={styles.card}>
-        <Text style={styles.sectionTitle}>Minutes cette semaine</Text>
+        <Text style={styles.sectionTitle}>Temps cette semaine</Text>
         <LineChart
           data={{
             labels: data.weekly.data.map((item) => item.day),
@@ -54,7 +54,7 @@ export default function ProgressScreen() {
           }}
           width={screenWidth - 48}
           height={210}
-          yAxisSuffix="m"
+          yAxisSuffix="s"
           chartConfig={{
             backgroundGradientFrom: colors.surface,
             backgroundGradientTo: colors.surface,
@@ -80,7 +80,7 @@ export default function ProgressScreen() {
             data.overall.streak_days,
             data.overall.badges_count,
             data.monthly_goal.percent,
-            data.overall.time_total_minutes,
+            data.overall.time_total_seconds,
           ]}
         />
       </View>

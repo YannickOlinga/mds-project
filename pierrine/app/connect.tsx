@@ -15,7 +15,7 @@ import { getErrorMessage } from "@/utils/apiError";
 
 export default function ConnectScreen() {
   const { state, devices, connectedDevice, error, scan, connect, reset } = useDeviceStore();
-  const connectBackend = useConnectDeviceMutation();
+  const connectDeviceMutation = useConnectDeviceMutation();
   const showToast = useToast((toast) => toast.show);
   const isAuthenticated = useAuthStore((auth) => auth.isAuthenticated);
 
@@ -26,7 +26,7 @@ export default function ConnectScreen() {
     const latest = useDeviceStore.getState().connectedDevice;
     if (!latest) return;
 
-    connectBackend.mutate(
+    connectDeviceMutation.mutate(
       {
         device_name: latest.name,
         connected: true,
@@ -90,7 +90,7 @@ export default function ConnectScreen() {
               key={device.id}
               style={styles.deviceCard}
               onPress={() => void handleConnect(device.id)}
-              disabled={state === "connecting" || connectBackend.isPending}
+              disabled={state === "connecting" || connectDeviceMutation.isPending}
             >
               <View>
                 <Text style={styles.deviceName}>{device.name}</Text>

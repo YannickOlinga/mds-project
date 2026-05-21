@@ -31,6 +31,7 @@ export default function RootLayout() {
           <Stack.Screen name="connect" />
           <Stack.Screen name="connected" />
           <Stack.Screen name="questionnaire" />
+          <Stack.Screen name="edit-profile" />
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="modal" options={{ presentation: "modal" }} />
         </Stack>

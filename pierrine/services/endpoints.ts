@@ -5,6 +5,7 @@ import type {
   DeviceStatus,
   LevelKey,
   ProfileResponse,
+  ProfileUpdatePayload,
   ProgressResponse,
   TrainingProgramResponse,
 } from "@/types/api";
@@ -66,11 +67,9 @@ export async function getMeProfile() {
   return response.data;
 }
 
-export async function updateMeProfileSettings(payload: {
-  reminders?: boolean;
-  notifications?: boolean;
-  darkMode?: boolean;
-}) {
+export async function updateMeProfile(payload: ProfileUpdatePayload) {
   const response = await api.put<ProfileResponse>("/api/me/profile", payload);
   return response.data;
 }
+
+export const updateMeProfileSettings = updateMeProfile;

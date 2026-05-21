@@ -1,5 +1,5 @@
 import { LinearGradient } from "expo-linear-gradient";
-import { Bell, LogOut, Moon, Settings, Trophy } from "lucide-react-native";
+import { Bell, Edit3, LogOut, Moon, Settings, Trophy } from "lucide-react-native";
 import type { ReactNode } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
 import { router } from "expo-router";
@@ -90,6 +90,10 @@ export default function ProfileScreen() {
             <Text style={styles.infoValue}>{item.value}</Text>
           </View>
         ))}
+        <Pressable style={styles.secondaryButton} onPress={() => router.push("/edit-profile")}>
+          <Edit3 size={18} color={colors.plum} />
+          <Text style={styles.secondaryText}>Modifier mes informations</Text>
+        </Pressable>
       </View>
 
       <View style={styles.card}>
@@ -241,6 +245,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceAlt,
     paddingVertical: 12,
     alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: spacing.sm,
   },
   secondaryText: { color: colors.plum, fontWeight: "900" },
   logoutButton: {

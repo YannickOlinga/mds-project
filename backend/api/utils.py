@@ -51,24 +51,24 @@ def level_label(level_key: str) -> str:
     return LEVEL_LABEL_BY_KEY.get(level_key, level_key)
 
 
-def format_duration_minutes(total_minutes: int) -> str:
-    hours = total_minutes // 60
-    minutes = total_minutes % 60
-    if hours > 0:
-        return f"{hours}h {minutes:02d}".replace("h 00", "h 0")
-    return f"{minutes} min"
-
-
-def format_session_duration(minutes: int) -> str:
-    return f"{minutes} min"
+def format_duration_seconds(total_seconds: int) -> str:
+    if total_seconds < 60:
+        return f"{total_seconds} s"
+    minutes = total_seconds // 60
+    seconds = total_seconds % 60
+    if minutes < 60:
+        return f"{minutes} min {seconds} s" if seconds else f"{minutes} min"
+    hours = minutes // 60
+    remaining_minutes = minutes % 60
+    return f"{hours}h {remaining_minutes:02d}".replace("h 00", "h")
 
 
 def compute_total_sessions(profile: Profile) -> int:
     return Session.objects.filter(profile=profile).count()
 
 
-def compute_total_minutes(profile: Profile) -> int:
-    agg = Session.objects.filter(profile=profile).aggregate(total=Sum("duration_minutes"))
+def compute_total_seconds(profile: Profile) -> int:
+    agg = Session.objects.filter(profile=profile).aggregate(total=Sum("duration_seconds"))
     return int(agg["total"] or 0)
 
 
@@ -95,7 +95,7 @@ def compute_weekly_data(profile: Profile) -> list[WeeklyItem]:
     for i in range(7):
         day_date = week_start + timedelta(days=i)
         agg = Session.objects.filter(profile=profile, started_at__date=day_date).aggregate(
-            total=Sum("duration_minutes")
+            total=Sum("duration_seconds")
         )
         out.append(
             {
@@ -143,32 +143,66 @@ def earned_achievements(profile: Profile) -> set[str]:
     return earned
 
 
+def achievement_progress(profile: Profile, code: str) -> tuple[int, int]:
+    total_sessions = compute_total_sessions(profile)
+    streak_days = compute_streak_days(profile)
+    total_training_span_days = compute_distinct_training_days(profile)
+    fast_sessions = Session.objects.filter(profile=profile, duration_minutes__lte=10).exists()
+
+    if code == ACH_PREMIERS_PAS:
+        return min(total_sessions, 1), 1
+    if code == ACH_REGULARITE:
+        return min(streak_days, 7), 7
+    if code == ACH_ATHLETE:
+        return min(total_sessions, 10), 10
+    if code == ACH_MAITRE:
+        return min(total_sessions, 50), 50
+    if code == ACH_ECLAIR:
+        return (1 if fast_sessions else 0), 1
+    if code == ACH_PERSERVERANCE:
+        return min(total_training_span_days, 30), 30
+    return 0, 1
+
+
 @transaction.atomic
 def ensure_reference_data() -> None:
-    if not ExerciseTemplate.objects.exists():
-        exercises = [
-            ("Contraction douce", "Contractez les muscles du plancher pelvien", 10, 1),
-            ("Relachement controle", "Detendez completement les muscles", 10, 2),
-            ("Contraction longue", "Maintenez la contraction cinq secondes", 10, 3),
-            ("Repetition rapide", "Realisez des contractions courtes et rapides", 15, 4),
-        ]
-        ExerciseTemplate.objects.bulk_create(
-            [
-                ExerciseTemplate(
-                    level_key=level_key,
-                    name=name,
-                    description=description,
-                    icon="activity",
-                    duration_minutes=duration,
-                    timer_duration_seconds=duration,
-                    sort_order=sort_order,
-                )
-                for level_key in (LEVEL_DEBUTANT, LEVEL_INTERMEDIAIRE, LEVEL_AVANCE)
-                for name, description, duration, sort_order in exercises
-            ]
-        )
-    else:
-        ExerciseTemplate.objects.update(icon="activity")
+    exercises_by_level = {
+        LEVEL_DEBUTANT: [
+            ("Respiration abdominale", "Inspirez lentement puis relachez sans forcer", 8, 1),
+            ("Contraction douce", "Contractez legerement puis relachez completement", 10, 2),
+            ("Maintien court", "Maintenez la contraction trois secondes", 10, 3),
+            ("Repos guide", "Relachez et observez la sensation de detente", 12, 4),
+        ],
+        LEVEL_INTERMEDIAIRE: [
+            ("Contraction controlee", "Contractez progressivement puis relachez lentement", 12, 1),
+            ("Maintien cinq secondes", "Gardez une contraction stable sans bloquer la respiration", 15, 2),
+            ("Repetitions lentes", "Alternez contraction et relachement avec precision", 15, 3),
+            ("Serie rapide", "Realisez des contractions courtes en gardant le controle", 18, 4),
+        ],
+        LEVEL_AVANCE: [
+            ("Activation profonde", "Montez l'intensite de contraction par paliers", 18, 1),
+            ("Maintien long", "Maintenez la contraction huit secondes avec respiration fluide", 22, 2),
+            ("Endurance progressive", "Repetez les contractions sans perdre la qualite du relachement", 25, 3),
+            ("Controle rapide", "Enchainez contractions rapides puis retour complet au repos", 25, 4),
+            ("Recuperation active", "Relachez totalement avant la prochaine serie", 15, 5),
+        ],
+    }
+
+    for level_key, exercises in exercises_by_level.items():
+        wanted_orders = {sort_order for _, _, _, sort_order in exercises}
+        ExerciseTemplate.objects.filter(level_key=level_key).exclude(sort_order__in=wanted_orders).delete()
+        for name, description, duration_seconds, sort_order in exercises:
+            ExerciseTemplate.objects.update_or_create(
+                level_key=level_key,
+                sort_order=sort_order,
+                defaults={
+                    "name": name,
+                    "description": description,
+                    "icon": "activity",
+                    "duration_minutes": max(1, round(duration_seconds / 60)),
+                    "timer_duration_seconds": duration_seconds,
+                },
+            )
 
     if not SessionTemplate.objects.exists():
         SessionTemplate.objects.bulk_create(
@@ -277,7 +311,7 @@ def build_dashboard(profile_id: int) -> dict:
     cutoff = today - timedelta(days=6)
     sessions_this_week = Session.objects.filter(profile=profile, started_at__date__gte=cutoff, started_at__date__lte=today).count()
 
-    total_minutes = compute_total_minutes(profile)
+    total_seconds = compute_total_seconds(profile)
 
     current_month_sessions = compute_month_sessions(profile, year=today.year, month=today.month)
     target = profile.monthly_goal_sessions_target or 1
@@ -304,7 +338,8 @@ def build_dashboard(profile_id: int) -> dict:
     return {
         "streak_days": streak_days,
         "sessions_this_week": sessions_this_week,
-        "total_minutes": total_minutes,
+        "total_seconds": total_seconds,
+        "total_time_formatted": format_duration_seconds(total_seconds),
         "objective_percent": objective_percent,
         "upcoming_sessions": upcoming_sessions,
         "tips": tips_out,
@@ -339,7 +374,8 @@ def build_training_program(profile_id: int, level_key: str) -> dict:
 
     objective_percent = build_dashboard(profile_id)["objective_percent"]
 
-    total_minutes = sum(e.duration_minutes for e in exercises)
+    total_seconds = sum(e.timer_duration_seconds for e in exercises)
+    total_minutes = round(total_seconds / 60, 1)
     return {
         "levels": levels,
         "selected_level": {
@@ -360,6 +396,7 @@ def build_training_program(profile_id: int, level_key: str) -> dict:
         ],
         "summary": {
             "total_duration_minutes": total_minutes,
+            "total_duration_seconds": total_seconds,
             "exercises_count": len(exercises),
             "objective_percent": objective_percent,
         },
@@ -372,7 +409,7 @@ def build_progress(profile_id: int) -> dict:
 
     weekly = compute_weekly_data(profile)
     weekly_max = max([item["value"] for item in weekly] or [0])
-    total_minutes = compute_total_minutes(profile)
+    total_seconds = compute_total_seconds(profile)
     streak_days = compute_streak_days(profile)
 
     current_month_sessions = compute_month_sessions(profile, year=today.year, month=today.month)
@@ -385,13 +422,18 @@ def build_progress(profile_id: int) -> dict:
 
     achievements = []
     for idx, a in enumerate(achievements_tpl, start=1):
+        progress, target = achievement_progress(profile, a.code)
         achievements.append(
             {
                 "id": idx,
+                "code": a.code,
                 "title": a.title,
                 "description": a.description,
                 "icon": a.icon,
                 "earned": a.code in achievements_earned,
+                "progress": progress,
+                "target": target,
+                "percent": round((progress / target) * 100) if target else 0,
             }
         )
 
@@ -413,7 +455,7 @@ def build_progress(profile_id: int) -> dict:
             {
                 "id": s.id,
                 "date": date_label,
-                "duration": format_session_duration(s.duration_minutes),
+                "duration": format_duration_seconds(s.duration_seconds),
                 "exercises": s.exercises_count,
                 "level": level_label(s.level_key),
             }
@@ -423,8 +465,8 @@ def build_progress(profile_id: int) -> dict:
         "overall": {
             "sessions_total": compute_total_sessions(profile),
             "streak_days": streak_days,
-            "time_total_minutes": total_minutes,
-            "time_total_formatted": format_duration_minutes(total_minutes),
+            "time_total_seconds": total_seconds,
+            "time_total_formatted": format_duration_seconds(total_seconds),
             "badges_count": badges_count,
         },
         "weekly": {
@@ -445,7 +487,7 @@ def build_progress(profile_id: int) -> dict:
 def build_profile(profile_id: int) -> dict:
     profile = ensure_profile_data(profile_id)
 
-    total_minutes = compute_total_minutes(profile)
+    total_seconds = compute_total_seconds(profile)
     total_sessions = compute_total_sessions(profile)
     streak_days = compute_streak_days(profile)
 
@@ -455,15 +497,42 @@ def build_profile(profile_id: int) -> dict:
     personal_info = [
         {"label": "Nom", "value": profile.name},
         {"label": "Email", "value": profile.email},
-        {"label": "Âge", "value": f"{profile.age} ans"},
-        {"label": "Objectif", "value": profile.objective},
     ]
+    if profile.age:
+        personal_info.append({"label": "Age", "value": f"{profile.age} ans"})
+    if profile.objective:
+        personal_info.append({"label": "Objectif", "value": profile.objective})
+    if profile.training_frequency:
+        personal_info.append({"label": "Frequence", "value": profile.training_frequency})
+    if profile.symptoms:
+        personal_info.append({"label": "Symptomes", "value": ", ".join(profile.symptoms)})
+    if profile.birth_context:
+        personal_info.append({"label": "Contexte", "value": profile.birth_context})
+    if profile.has_probe is not None:
+        personal_info.append(
+            {"label": "Sonde", "value": "Disponible" if profile.has_probe else "Pas encore"}
+        )
 
     return {
+        "onboarding_completed": profile.onboarding_completed,
+        "has_probe": profile.has_probe,
+        "profile_fields": {
+            "name": profile.name,
+            "age": profile.age,
+            "objective": profile.objective,
+            "level_key": profile.level_key,
+            "training_frequency": profile.training_frequency,
+            "symptoms": profile.symptoms,
+            "birth_context": profile.birth_context,
+            "has_probe": profile.has_probe,
+            "health_notes": profile.health_notes,
+            "monthly_goal_sessions_target": profile.monthly_goal_sessions_target,
+        },
         "personalInfo": personal_info,
         "stats": {
             "sessions_total": total_sessions,
-            "time_total_formatted": format_duration_minutes(total_minutes),
+            "time_total_seconds": total_seconds,
+            "time_total_formatted": format_duration_seconds(total_seconds),
             "streak_days": streak_days,
             "badges_count": badges_count,
         },
@@ -479,6 +548,7 @@ def build_profile(profile_id: int) -> dict:
         },
         # Niveau actuel utilisé dans le "badge" profil
         "level": {
+            "key": profile.level_key,
             "label": level_label(profile.level_key),
         },
     }

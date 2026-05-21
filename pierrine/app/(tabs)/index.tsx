@@ -1,9 +1,10 @@
 import { LinearGradient } from "expo-linear-gradient";
-import { Activity, Battery, Cpu, Flame, Play, Signal } from "lucide-react-native";
+import { Activity, Battery, CalendarCheck2, Cpu, Flame, Play, Signal } from "lucide-react-native";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { router } from "expo-router";
 import type { ReactNode } from "react";
 
+import BrandLogo from "@/components/ui/BrandLogo";
 import EmptyState from "@/components/ui/EmptyState";
 import ErrorState from "@/components/ui/ErrorState";
 import LoadingScreen from "@/components/ui/LoadingScreen";
@@ -35,9 +36,15 @@ export default function DashboardScreen() {
   const name = profile.data?.personalInfo.find((item) => item.label === "Nom")?.value;
   const totalSessions = profile.data?.stats.sessions_total ?? 0;
   const hasActivity = totalSessions > 0;
+  const hasProbe = profile.data?.has_probe === true;
+  const noProbeMode = !data.device.connected;
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      <View style={styles.logoWrap}>
+        <BrandLogo />
+      </View>
+
       <View style={styles.header}>
         <View>
           <Text style={styles.greeting}>Bonjour {firstNameFromProfile(name)}</Text>
@@ -56,20 +63,20 @@ export default function DashboardScreen() {
       {hasActivity ? (
         <View style={styles.statsContainer}>
           <Stat value={data.sessions_this_week} label="Séances" sub="semaine" />
-          <Stat value={data.total_minutes} label="Minutes" sub="total" />
+          <Stat value={data.total_time_formatted} label="Temps" sub="total" />
           <Stat value={`${data.objective_percent}%`} label="Objectif" sub="mensuel" />
         </View>
       ) : (
         <View style={styles.emptyCard}>
           <EmptyState
             title="Aucune session enregistrée"
-            message="Les statistiques, objectifs et historiques apparaîtront uniquement après une session sauvegardée par le backend."
+            message="Vos statistiques, objectifs et historiques apparaîtront après votre première séance terminée."
           />
           <LinearGradient colors={gradients.primary} style={styles.quickStartCard}>
             <Pressable style={styles.quickStartContent} onPress={() => router.push("/(tabs)/training")}>
-              <View>
+              <View style={styles.quickStartTextBlock}>
                 <Text style={styles.quickStartTitle}>Commencer un entraînement</Text>
-                <Text style={styles.quickStartSubtitle}>Choisir un programme réel depuis l’API</Text>
+                <Text style={styles.quickStartSubtitle}>Choisir un programme adapté à mon profil</Text>
               </View>
               <View style={styles.playButton}>
                 <Play size={22} color={colors.plum} fill={colors.surface} />
@@ -78,6 +85,22 @@ export default function DashboardScreen() {
           </LinearGradient>
         </View>
       )}
+
+      {noProbeMode ? (
+        <View style={styles.noProbeCard}>
+          <View style={styles.noProbeIcon}>
+            <CalendarCheck2 size={22} color={colors.surface} />
+          </View>
+          <View style={styles.flex}>
+            <Text style={styles.noProbeTitle}>Mode sans sonde</Text>
+            <Text style={styles.noProbeText}>
+              {
+                "Vous pouvez suivre des séances guidées au minuteur. L'app enregistre uniquement les sessions réalisées, le temps d'entraînement et la régularité."
+              }
+            </Text>
+          </View>
+        </View>
+      ) : null}
 
       <Section title="Appareil">
         <View style={styles.deviceCard}>
@@ -97,7 +120,9 @@ export default function DashboardScreen() {
         </View>
         {!data.device.connected ? (
           <Pressable style={styles.connectLaterButton} onPress={() => router.push("/connect")}>
-            <Text style={styles.connectLaterText}>Connecter une sonde</Text>
+            <Text style={styles.connectLaterText}>
+              {hasProbe ? "Connecter une sonde" : "Ajouter une sonde plus tard"}
+            </Text>
           </Pressable>
         ) : null}
       </Section>
@@ -126,7 +151,9 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 function Stat({ value, label, sub }: { value: string | number; label: string; sub: string }) {
   return (
     <View style={styles.statCard}>
-      <Text style={styles.statNumber}>{value}</Text>
+      <Text style={styles.statNumber} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.7}>
+        {value}
+      </Text>
       <Text style={styles.statLabel}>{label}</Text>
       <Text style={styles.statSublabel}>{sub}</Text>
     </View>
@@ -135,7 +162,11 @@ function Stat({ value, label, sub }: { value: string | number; label: string; su
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
-  content: { padding: spacing.xl, paddingTop: 56, paddingBottom: 120, gap: spacing.xl },
+  content: { padding: spacing.xl, paddingTop: 44, paddingBottom: 120, gap: spacing.xl },
+  logoWrap: {
+    alignItems: "center",
+    marginBottom: -8,
+  },
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   greeting: { fontSize: 28, fontWeight: "900", color: colors.plum },
   subtitle: { fontSize: 14, color: colors.textMuted, marginTop: 4 },
@@ -149,7 +180,7 @@ const styles = StyleSheet.create({
     borderRadius: 999,
   },
   streakText: { fontWeight: "800", color: colors.plum },
-  statsContainer: { flexDirection: "row", gap: spacing.md },
+  statsContainer: { flexDirection: "row", gap: spacing.sm },
   emptyCard: {
     gap: spacing.lg,
     backgroundColor: colors.surface,
@@ -158,26 +189,59 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     padding: spacing.md,
   },
+  noProbeCard: {
+    flexDirection: "row",
+    gap: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.lg,
+  },
+  noProbeIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.coral,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  noProbeTitle: { color: colors.plum, fontSize: 17, fontWeight: "900" },
+  noProbeText: { color: colors.textMuted, marginTop: 5, lineHeight: 20 },
   statCard: {
     flex: 1,
+    minWidth: 0,
     alignItems: "center",
     backgroundColor: colors.surface,
     borderRadius: radius.lg,
+    paddingHorizontal: spacing.sm,
     paddingVertical: spacing.lg,
     borderWidth: 1,
     borderColor: colors.border,
   },
-  statNumber: { fontSize: 23, fontWeight: "900", color: colors.plum },
+  statNumber: {
+    color: colors.plum,
+    fontSize: 22,
+    fontWeight: "900",
+    lineHeight: 25,
+    minHeight: 52,
+    textAlign: "center",
+    width: "100%",
+  },
   statLabel: { fontSize: 13, fontWeight: "800", color: colors.text, marginTop: 4 },
   statSublabel: { fontSize: 11, color: colors.textMuted, marginTop: 2 },
   quickStartCard: { borderRadius: radius.xl, overflow: "hidden" },
   quickStartContent: {
     padding: spacing.xl,
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
+    gap: spacing.md,
   },
-  quickStartTitle: { fontSize: 20, fontWeight: "900", color: colors.surface },
+  quickStartTextBlock: {
+    flex: 1,
+    minWidth: 0,
+  },
+  quickStartTitle: { fontSize: 20, fontWeight: "900", color: colors.surface, lineHeight: 24 },
   quickStartSubtitle: { fontSize: 14, color: "rgba(255,255,255,0.82)", marginTop: 4 },
   playButton: {
     width: 48,
@@ -186,6 +250,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     alignItems: "center",
     justifyContent: "center",
+    flexShrink: 0,
   },
   section: { gap: spacing.md },
   sectionTitle: { fontSize: 18, fontWeight: "900", color: colors.plum },

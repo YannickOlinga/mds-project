@@ -1,5 +1,5 @@
 import { LinearGradient } from "expo-linear-gradient";
-import { Activity, CheckCircle2, Clock, Play, Square } from "lucide-react-native";
+import { Activity, CheckCircle2, Clock, Info, Play, Square } from "lucide-react-native";
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
@@ -11,9 +11,16 @@ import LoadingScreen from "@/components/ui/LoadingScreen";
 import { useToast } from "@/components/ui/Toast";
 import { colors, gradients } from "@/constants/theme/colors";
 import { radius, spacing } from "@/constants/theme/spacing";
-import { useCompleteTrainingMutation, useTrainingProgramQuery } from "@/hooks/useApiQueries";
+import { useCompleteTrainingMutation, useProfileQuery, useTrainingProgramQuery } from "@/hooks/useApiQueries";
 import type { LevelKey } from "@/types/api";
 import { getErrorMessage } from "@/utils/apiError";
+
+function formatSeconds(seconds: number) {
+  if (seconds < 60) return `${seconds} s`;
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = seconds % 60;
+  return remainingSeconds > 0 ? `${minutes} min ${remainingSeconds} s` : `${minutes} min`;
+}
 
 export default function TrainingScreen() {
   const [selectedLevel, setSelectedLevel] = useState<LevelKey>("debutant");
@@ -25,11 +32,13 @@ export default function TrainingScreen() {
   const showToast = useToast((state) => state.show);
 
   const program = useTrainingProgramQuery(selectedLevel);
+  const profile = useProfileQuery();
   const complete = useCompleteTrainingMutation();
   const exercises = useMemo(() => program.data?.exercises ?? [], [program.data?.exercises]);
   const activeExercise = exercises[currentExercise];
+  const noProbeMode = profile.data?.device.connected === false;
 
-  const totalDemoSeconds = useMemo(
+  const totalSessionSeconds = useMemo(
     () => exercises.reduce((sum, exercise) => sum + exercise.timer_duration_seconds, 0),
     [exercises]
   );
@@ -74,18 +83,18 @@ export default function TrainingScreen() {
   }, [activeExercise, complete, currentExercise, exercises, isPlaying, progress, selectedLevel, showToast, timeLeft]);
 
   useEffect(() => {
-    if (!isPlaying || totalDemoSeconds === 0) return;
+    if (!isPlaying || totalSessionSeconds === 0) return;
     progress.value = withTiming(1, {
-      duration: totalDemoSeconds * 1000,
+      duration: totalSessionSeconds * 1000,
       easing: Easing.linear,
     });
-  }, [isPlaying, progress, totalDemoSeconds]);
+  }, [isPlaying, progress, totalSessionSeconds]);
 
   const progressStyle = useAnimatedStyle(() => ({
     width: `${Math.max(0, Math.min(1, progress.value)) * 100}%`,
   }));
 
-  if (program.isLoading) {
+  if (program.isLoading || profile.isLoading) {
     return <LoadingScreen label="Chargement du programme" />;
   }
 
@@ -116,8 +125,26 @@ export default function TrainingScreen() {
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View>
         <Text style={styles.title}>Entraînement</Text>
-        <Text style={styles.subtitle}>Exercices disponibles depuis le backend</Text>
+        <Text style={styles.subtitle}>
+          {noProbeMode
+            ? "Séances guidées sans mesure capteur"
+            : "Programme adapté à votre profil"}
+        </Text>
       </View>
+
+      {noProbeMode ? (
+        <View style={styles.modeCard}>
+          <Info size={20} color={colors.coral} />
+          <View style={styles.flex}>
+            <Text style={styles.modeTitle}>Alternative sans sonde</Text>
+            <Text style={styles.modeText}>
+              {
+                "La séance est guidée au minuteur et sauvegardée comme activité réelle. Aucun score de force, d'endurance ou de contraction n'est calculé sans capteur."
+              }
+            </Text>
+          </View>
+        </View>
+      ) : null}
 
       <View style={styles.levelContainer}>
         {program.data.levels.map((level) => (
@@ -138,9 +165,9 @@ export default function TrainingScreen() {
       </View>
 
       <View style={styles.summaryCard}>
-        <Summary icon={<Clock size={18} color={colors.plum} />} value={`${program.data.summary.total_duration_minutes} min`} label="Durée réelle" />
+        <Summary icon={<Clock size={18} color={colors.plum} />} value={formatSeconds(program.data.summary.total_duration_seconds)} label="Durée guidée" />
         <Summary icon={<CheckCircle2 size={18} color={colors.plum} />} value={exercises.length} label="Exercices" />
-        <Summary icon={<Play size={18} color={colors.plum} />} value={`${program.data.summary.objective_percent}%`} label="Objectif" />
+        <Summary icon={<Play size={18} color={colors.plum} />} value={`${program.data.summary.objective_percent}%`} label="Objectif mensuel" />
       </View>
 
       <View style={styles.exerciseList}>
@@ -153,7 +180,7 @@ export default function TrainingScreen() {
               <Text style={styles.exerciseName}>{exercise.name}</Text>
               <Text style={styles.exerciseDescription}>{exercise.description}</Text>
             </View>
-            <Text style={styles.exerciseDuration}>{exercise.duration_minutes} min</Text>
+            <Text style={styles.exerciseDuration}>{formatSeconds(exercise.timer_duration_seconds)}</Text>
           </View>
         ))}
       </View>
@@ -217,6 +244,17 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     padding: spacing.lg,
   },
+  modeCard: {
+    flexDirection: "row",
+    gap: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.lg,
+  },
+  modeTitle: { color: colors.plum, fontSize: 16, fontWeight: "900" },
+  modeText: { color: colors.textMuted, marginTop: 4, lineHeight: 20 },
   summaryItem: { flex: 1, alignItems: "center", gap: 4 },
   summaryValue: { color: colors.plum, fontSize: 18, fontWeight: "900" },
   summaryLabel: { color: colors.textMuted, fontSize: 11, fontWeight: "700" },

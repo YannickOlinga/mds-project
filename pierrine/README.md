@@ -16,6 +16,15 @@ This is an [Expo](https://expo.dev) project created with [`create-expo-app`](htt
    npx expo start
    ```
 
+   The API URL is generated automatically from your local network IP address,
+   for example `http://192.168.1.12:8000`.
+
+   You can override it when needed:
+
+   ```bash
+   EXPO_PUBLIC_API_BASE_URL=http://192.168.1.12:8000 npx expo start
+   ```
+
 In the output, you'll find options to open the app in a
 
 - [development build](https://docs.expo.dev/develop/development-builds/introduction/)

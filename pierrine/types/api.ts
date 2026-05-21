@@ -56,7 +56,8 @@ export type DashboardResponse = {
   level?: { label: string };
   streak_days: number;
   sessions_this_week: number;
-  total_minutes: number;
+  total_seconds: number;
+  total_time_formatted: string;
   objective_percent: number;
   upcoming_sessions: DashboardSession[];
   tips: DashboardTip[];
@@ -89,6 +90,7 @@ export type TrainingProgramResponse = {
   exercises: Exercise[];
   summary: {
     total_duration_minutes: number;
+    total_duration_seconds: number;
     exercises_count: number;
     objective_percent: number;
   };
@@ -101,10 +103,14 @@ export type WeeklyStat = {
 
 export type Achievement = {
   id: number;
+  code?: string;
   title: string;
   description: string;
   icon: string;
   earned: boolean;
+  progress?: number;
+  target?: number;
+  percent?: number;
 };
 
 export type HistoryItem = {
@@ -119,7 +125,7 @@ export type ProgressResponse = {
   overall: {
     sessions_total: number;
     streak_days: number;
-    time_total_minutes: number;
+    time_total_seconds: number;
     time_total_formatted: string;
     badges_count: number;
     xp?: number;
@@ -144,9 +150,24 @@ export type ProfileInfoItem = {
 };
 
 export type ProfileResponse = {
+  onboarding_completed?: boolean;
+  has_probe?: boolean | null;
+  profile_fields?: {
+    name: string;
+    age: number;
+    objective: string;
+    level_key: LevelKey;
+    training_frequency: string;
+    symptoms: string[];
+    birth_context: string;
+    has_probe: boolean | null;
+    health_notes: string;
+    monthly_goal_sessions_target: number;
+  };
   personalInfo: ProfileInfoItem[];
   stats: {
     sessions_total: number;
+    time_total_seconds?: number;
     time_total_formatted: string;
     streak_days: number;
     badges_count: number;
@@ -159,6 +180,24 @@ export type ProfileResponse = {
   };
   device: DeviceStatus;
   level: {
+    key?: LevelKey;
     label: string;
   };
+};
+
+export type ProfileUpdatePayload = {
+  name?: string;
+  age?: number;
+  objective?: string;
+  level_key?: LevelKey;
+  training_frequency?: string;
+  symptoms?: string[];
+  birth_context?: string;
+  has_probe?: boolean;
+  health_notes?: string;
+  monthly_goal_sessions_target?: number;
+  onboarding_completed?: boolean;
+  reminders?: boolean;
+  notifications?: boolean;
+  darkMode?: boolean;
 };

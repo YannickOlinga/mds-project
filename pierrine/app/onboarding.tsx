@@ -19,6 +19,7 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import * as Haptics from 'expo-haptics';
+import BrandLogo from '../components/ui/BrandLogo';
 import OnboardingSlide from '../components/ui/OnboardingSlide';
 import PaginationDots from '../components/ui/PaginationDots';
 import AnimatedButton from '../components/ui/AnimatedButton';
@@ -115,6 +116,10 @@ const goToLogin = () => {
 
   return (
     <View style={styles.container}>
+      <View style={styles.logoContainer}>
+        <BrandLogo compact />
+      </View>
+
       {/* Skip Button */}
       <Animated.View style={[styles.skipContainer, skipOpacity]}>
         <Pressable style={styles.skip} onPress={onSkipPress}>
@@ -168,6 +173,12 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 60,
     right: 32,
+    zIndex: 100,
+  },
+  logoContainer: {
+    position: 'absolute',
+    top: 48,
+    left: 24,
     zIndex: 100,
   },
   skip: {
