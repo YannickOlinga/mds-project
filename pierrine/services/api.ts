@@ -1,26 +1,16 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from "axios";
-import Constants from "expo-constants";
-import { Platform } from "react-native";
 
+import { API_BASE_URL } from "@/config/env";
 import { clearTokens, getAccessToken, getRefreshToken, saveTokens } from "@/services/auth";
 import { AppError } from "@/utils/apiError";
 
 type RetryConfig = InternalAxiosRequestConfig & { _retry?: boolean };
 
-function resolveApiBaseUrl() {
-  if (process.env.EXPO_PUBLIC_API_BASE_URL) {
-    return process.env.EXPO_PUBLIC_API_BASE_URL;
-  }
+const apiBaseUrl = API_BASE_URL;
 
-  if (Platform.OS === "web") {
-    return "http://localhost:8000";
-  }
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return (Constants.expoConfig as any)?.extra?.apiBaseUrl ?? "http://localhost:8000";
+if (__DEV__) {
+  console.log("[API] baseURL:", apiBaseUrl);
 }
-
-const apiBaseUrl = resolveApiBaseUrl();
 
 export const api = axios.create({
   baseURL: apiBaseUrl,

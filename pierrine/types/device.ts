@@ -7,9 +7,12 @@ export type BluetoothConnectionState =
   | "disconnected"
   | "error";
 
+export type ConnectionType = "ble" | "wifi";
+
 export type PeripheralDevice = {
   id: string;
   name: string;
   rssi?: number | null;
   batteryPct?: number;
+  connectionType?: ConnectionType;
 };

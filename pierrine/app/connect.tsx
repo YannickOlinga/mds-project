@@ -1,8 +1,10 @@
 import { LinearGradient } from "expo-linear-gradient";
-import { Bluetooth, BluetoothConnected, RefreshCcw } from "lucide-react-native";
+import { Bluetooth, BluetoothConnected, RefreshCcw, Wifi } from "lucide-react-native";
 import { useEffect } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { router } from "expo-router";
+
+import SondeViewer from "@/components/SondeViewer";
 
 import ErrorState from "@/components/ui/ErrorState";
 import { useToast } from "@/components/ui/Toast";
@@ -14,12 +16,16 @@ import { useDeviceStore } from "@/store/deviceStore";
 import { getErrorMessage } from "@/utils/apiError";
 
 export default function ConnectScreen() {
-  const { state, devices, connectedDevice, error, scan, connect, reset } = useDeviceStore();
+  const { state, devices, connectedDevice, error, connectionType, scan, connect, reset, setConnectionType } = useDeviceStore();
   const connectDeviceMutation = useConnectDeviceMutation();
   const showToast = useToast((toast) => toast.show);
   const isAuthenticated = useAuthStore((auth) => auth.isAuthenticated);
 
   useEffect(() => () => reset(), [reset]);
+
+  function handleConnectionTypeChange(type: "ble" | "wifi") {
+    setConnectionType(type);
+  }
 
   async function handleConnect(deviceId: string) {
     await connect(deviceId);
@@ -52,13 +58,18 @@ export default function ConnectScreen() {
       </Pressable>
 
       <View style={styles.hero}>
-        <LinearGradient colors={gradients.primary} style={styles.iconBubble}>
-          {state === "connected" ? (
-            <BluetoothConnected size={62} color={colors.surface} />
-          ) : (
-            <Bluetooth size={62} color={colors.surface} />
-          )}
-        </LinearGradient>
+        {/* Modèle 3D de la sonde */}
+        <View style={styles.modelContainer}>
+          <SondeViewer variant="violet" size={260} />
+          {/* Indicateur d'état Bluetooth */}
+          <View style={[styles.statusBadge, { backgroundColor: state === "connected" ? colors.success : colors.plum }]}>
+            {state === "connected" ? (
+              <BluetoothConnected size={18} color={colors.surface} />
+            ) : (
+              <Bluetooth size={18} color={colors.surface} />
+            )}
+          </View>
+        </View>
         <Text style={styles.title}>Connecter la sonde</Text>
         <Text style={styles.subtitle}>
           Cette étape est nécessaire uniquement pour recueillir des mesures réelles. Vous pouvez continuer sans sonde et la connecter plus tard.
@@ -66,6 +77,31 @@ export default function ConnectScreen() {
       </View>
 
       {error ? <ErrorState error={new Error(error)} onRetry={() => void scan()} /> : null}
+
+      {/* Boutons de sélection du mode (Bluetooth / WiFi) */}
+      <View style={styles.modeSelector}>
+        <Pressable
+          style={[styles.modeButton, connectionType === "ble" && styles.modeButtonActive]}
+          onPress={() => handleConnectionTypeChange("ble")}
+          disabled={state !== "idle" && state !== "disconnected" && state !== "error"}
+        >
+          <Bluetooth size={18} color={connectionType === "ble" ? colors.surface : colors.plum} />
+          <Text style={[styles.modeButtonText, connectionType === "ble" && styles.modeButtonTextActive]}>
+            Bluetooth
+          </Text>
+        </Pressable>
+
+        <Pressable
+          style={[styles.modeButton, connectionType === "wifi" && styles.modeButtonActive]}
+          onPress={() => handleConnectionTypeChange("wifi")}
+          disabled={state !== "idle" && state !== "disconnected" && state !== "error"}
+        >
+          <Wifi size={18} color={connectionType === "wifi" ? colors.surface : colors.plum} />
+          <Text style={[styles.modeButtonText, connectionType === "wifi" && styles.modeButtonTextActive]}>
+            WiFi
+          </Text>
+        </Pressable>
+      </View>
 
       <LinearGradient colors={gradients.primary} style={styles.scanButton}>
         <Pressable style={styles.scanPressable} onPress={() => void scan()} disabled={state === "scanning"}>
@@ -82,7 +118,9 @@ export default function ConnectScreen() {
         <Text style={styles.sectionTitle}>Périphériques détectés</Text>
         {devices.length === 0 ? (
           <Text style={styles.emptyText}>
-            Aucun périphérique détecté. Vérifiez que la sonde est allumée et proche du téléphone.
+            {connectionType === "wifi"
+              ? "Aucun périphérique détecté. Vérifiez que la sonde est connectée au même WiFi que le téléphone."
+              : "Aucun périphérique détecté. Vérifiez que la sonde est allumée et proche du téléphone."}
           </Text>
         ) : (
           devices.map((device) => (
@@ -114,12 +152,25 @@ const styles = StyleSheet.create({
   content: { padding: spacing.xl, paddingTop: 56, paddingBottom: 80, gap: spacing.xl },
   back: { color: colors.plum, fontWeight: "800" },
   hero: { alignItems: "center", gap: spacing.md },
-  iconBubble: {
-    width: 132,
-    height: 132,
-    borderRadius: 66,
+  modelContainer: {
+    width: 260,
+    height: 260,
+    position: "relative",
+  },
+  statusBadge: {
+    position: "absolute",
+    bottom: 16,
+    right: 16,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: "center",
     justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
   },
   title: { color: colors.plum, fontSize: 28, fontWeight: "900", textAlign: "center" },
   subtitle: { color: colors.textMuted, textAlign: "center", lineHeight: 22 },
@@ -144,6 +195,34 @@ const styles = StyleSheet.create({
     color: colors.plum,
     fontSize: 15,
     fontWeight: "900",
+  },
+  modeSelector: {
+    flexDirection: "row",
+    gap: spacing.md,
+  },
+  modeButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.sm,
+    borderRadius: radius.lg,
+    borderWidth: 2,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    paddingVertical: 12,
+  },
+  modeButtonActive: {
+    backgroundColor: colors.plum,
+    borderColor: colors.plum,
+  },
+  modeButtonText: {
+    color: colors.plum,
+    fontSize: 14,
+    fontWeight: "900",
+  },
+  modeButtonTextActive: {
+    color: colors.surface,
   },
   list: { gap: spacing.md },
   sectionTitle: { color: colors.plum, fontSize: 18, fontWeight: "900" },

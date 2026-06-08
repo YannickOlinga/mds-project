@@ -3,11 +3,22 @@ import { useEffect } from "react";
 import { useFonts } from "expo-font";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import {
+  configureReanimatedLogger,
+  ReanimatedLogLevel,
+} from "react-native-reanimated";
 
 import ToastHost from "@/components/ui/ToastHost";
 import { queryClient } from "@/services/queryClient";
 import { setUnauthorizedHandler } from "@/services/api";
 import useAuthStore from '@/store/authStore';
+
+// Désactive le mode strict de Reanimated (warnings "Reading from `value`
+// during component render" — faux positifs émis par les animations en boucle).
+configureReanimatedLogger({
+  level: ReanimatedLogLevel.warn,
+  strict: false,
+});
 
 export default function RootLayout() {
   useFonts({});
@@ -33,6 +44,11 @@ export default function RootLayout() {
           <Stack.Screen name="questionnaire" />
           <Stack.Screen name="edit-profile" />
           <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="game" />
+          <Stack.Screen name="game-hub" />
+          <Stack.Screen name="game-bulles" />
+          <Stack.Screen name="game-eclipse" />
+          <Stack.Screen name="game-source" />
           <Stack.Screen name="modal" options={{ presentation: "modal" }} />
         </Stack>
         <ToastHost />

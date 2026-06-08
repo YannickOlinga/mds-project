@@ -3,6 +3,7 @@ import {
   BadgeCheck,
   CalendarCheck,
   CheckCircle2,
+  Gamepad2,
   Lock,
   Medal,
   ShieldCheck,
@@ -10,7 +11,8 @@ import {
   Timer,
 } from "lucide-react-native";
 import type { ReactNode } from "react";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { router } from "expo-router";
 
 import EmptyState from "@/components/ui/EmptyState";
 import ErrorState from "@/components/ui/ErrorState";
@@ -54,6 +56,18 @@ export default function ChallengesScreen() {
           </Text>
         </View>
       </View>
+
+      {/* Hub des mini-jeux */}
+      <Pressable style={styles.gameCard} onPress={() => router.push("/game-hub")}>
+        <View style={styles.gameIconWrap}>
+          <Gamepad2 size={26} color="#FFFFFF" />
+        </View>
+        <View style={styles.gameText}>
+          <Text style={styles.gameTitle}>Exercices Interactifs</Text>
+          <Text style={styles.gameSub}>4 jeux · Papillon · Bulles · Éclipse · La Source</Text>
+        </View>
+        <Text style={styles.gameArrow}>›</Text>
+      </Pressable>
 
       <View style={styles.summaryCard}>
         <SummaryItem value={earned.length} label="Badges gagnés" icon={<Medal size={20} color={colors.plum} />} />
@@ -247,4 +261,24 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
   },
   doneText: { color: colors.textMuted, flex: 1, fontWeight: "700", lineHeight: 20 },
+  gameCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    backgroundColor: colors.plum,
+    borderRadius: radius.xl,
+    padding: spacing.lg,
+  },
+  gameIconWrap: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  gameText: { flex: 1, minWidth: 0 },
+  gameTitle: { color: "#FFFFFF", fontSize: 18, fontWeight: "900" },
+  gameSub: { color: "rgba(255,255,255,0.72)", fontSize: 13, marginTop: 3 },
+  gameArrow: { color: "rgba(255,255,255,0.6)", fontSize: 28, fontWeight: "300" },
 });

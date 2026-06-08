@@ -14,8 +14,12 @@ export function scanForPerineaDevices(
   return deviceService.scan(onDevice, onError);
 }
 
-export function connectPeripheral(deviceId: string) {
+export function connectPeripheral(deviceId: string): Promise<PeripheralDevice> {
   return deviceService.connect(deviceId);
+}
+
+export function unsubscribeFromSensor() {
+  deviceService.unsubscribeFromSensor();
 }
 
 export function disposeBluetooth() {

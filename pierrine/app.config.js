@@ -1,38 +1,11 @@
-const os = require("node:os");
-
 const { expo } = require("./app.json");
-
-const DEFAULT_API_PORT = "8000";
-
-function getLocalIpAddress() {
-  const interfaces = os.networkInterfaces();
-
-  for (const addresses of Object.values(interfaces)) {
-    const address = addresses?.find(
-      (item) => item.family === "IPv4" && !item.internal
-    );
-
-    if (address) {
-      return address.address;
-    }
-  }
-
-  return "localhost";
-}
-
-function getApiBaseUrl() {
-  if (process.env.EXPO_PUBLIC_API_BASE_URL) {
-    return process.env.EXPO_PUBLIC_API_BASE_URL;
-  }
-
-  const host = process.env.EXPO_PUBLIC_API_HOST ?? getLocalIpAddress();
-  const port = process.env.EXPO_PUBLIC_API_PORT ?? DEFAULT_API_PORT;
-
-  return `http://${host}:${port}`;
-}
+const { getApiBaseUrl, getLocalIpAddress } = require("./scripts/get-local-ip");
 
 const apiBaseUrl = getApiBaseUrl();
+const apiHost = process.env.EXPO_PUBLIC_API_HOST ?? getLocalIpAddress();
+const apiPort = process.env.EXPO_PUBLIC_API_PORT ?? "8000";
 
+// Disponible dans le bundle client (axios, fetch, etc.)
 process.env.EXPO_PUBLIC_API_BASE_URL = apiBaseUrl;
 
 module.exports = {
@@ -41,6 +14,8 @@ module.exports = {
     extra: {
       ...expo.extra,
       apiBaseUrl,
+      apiHost,
+      apiPort,
     },
   },
 };

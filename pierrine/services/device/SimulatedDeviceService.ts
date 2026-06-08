@@ -14,6 +14,14 @@ export const SimulatedDeviceService = {
     throw new Error("Mode simulation indisponible tant qu'il n'est pas active explicitement.");
   },
 
+  subscribeToSensor() {
+    return undefined;
+  },
+
+  unsubscribeFromSensor() {
+    return undefined;
+  },
+
   dispose() {
     return undefined;
   },
