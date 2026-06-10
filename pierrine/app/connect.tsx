@@ -268,7 +268,7 @@ export default function ConnectScreen() {
           </View>
 
           <Pressable style={styles.skipButton} onPress={skipDeviceConnection}>
-            <Text style={styles.skipText}>Passer pour l'instant</Text>
+            <Text style={styles.skipText}>{"Passer pour l'instant"}</Text>
           </Pressable>
         </>
       )}

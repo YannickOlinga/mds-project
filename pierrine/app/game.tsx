@@ -510,7 +510,7 @@ function ProtocolSelect({ protocols, selected, onSelect, onStart }: {
       </View>
 
       <Pressable style={s.startBtn} onPress={onStart}>
-        <Text style={s.startBtnText}>Commencer l'exercice</Text>
+        <Text style={s.startBtnText}>{"Commencer l'exercice"}</Text>
       </Pressable>
 
       <Text style={s.hint}>Maintenez = contraction  ·  Relâchez = repos</Text>

@@ -14,7 +14,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 
-import { ACTION_UI, PROTOCOLS, isContractPhase, phaseAt, totalDurMs, type ExPhase, type Protocol } from '@/lib/exercises';
+import { ACTION_UI, PROTOCOLS, isContractPhase, phaseAt, totalDurMs, type ExPhase } from '@/lib/exercises';
 import { touchSignal } from '@/services/touchSignal';
 import { useDeviceStore } from '@/store/deviceStore';
 

@@ -1,16 +1,27 @@
 import { LinearGradient } from "expo-linear-gradient";
-import { Activity, Battery, CalendarCheck2, Cpu, Flame, Play, Signal } from "lucide-react-native";
+import {
+  Activity,
+  Bluetooth,
+  BluetoothConnected,
+  CalendarCheck2,
+  ChevronRight,
+  Flame,
+  Gamepad2,
+  Play,
+} from "lucide-react-native";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { router } from "expo-router";
 import type { ReactNode } from "react";
 
 import BrandLogo from "@/components/ui/BrandLogo";
+import SondeViewer from "@/components/SondeViewer";
 import EmptyState from "@/components/ui/EmptyState";
 import ErrorState from "@/components/ui/ErrorState";
 import LoadingScreen from "@/components/ui/LoadingScreen";
 import { colors, gradients } from "@/constants/theme/colors";
 import { radius, spacing } from "@/constants/theme/spacing";
 import { useDashboardQuery, useProfileQuery } from "@/hooks/useApiQueries";
+import { useDeviceStore } from "@/store/deviceStore";
 
 function firstNameFromProfile(profileName?: string) {
   return profileName?.trim().split(" ")[0] ?? "Bonjour";
@@ -19,6 +30,9 @@ function firstNameFromProfile(profileName?: string) {
 export default function DashboardScreen() {
   const dashboard = useDashboardQuery();
   const profile = useProfileQuery();
+  const localDeviceState = useDeviceStore((state) => state.state);
+  const localDevice = useDeviceStore((state) => state.connectedDevice);
+  const connectionType = useDeviceStore((state) => state.connectionType);
 
   if (dashboard.isLoading || profile.isLoading) {
     return <LoadingScreen label="Chargement de votre tableau de bord" />;
@@ -36,8 +50,8 @@ export default function DashboardScreen() {
   const name = profile.data?.personalInfo.find((item) => item.label === "Nom")?.value;
   const totalSessions = profile.data?.stats.sessions_total ?? 0;
   const hasActivity = totalSessions > 0;
-  const hasProbe = profile.data?.has_probe === true;
-  const noProbeMode = !data.device.connected;
+  const isProbeConnected = localDeviceState === "connected" || data.device.connected;
+  const deviceName = localDevice?.name || data.device.device_name;
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -58,6 +72,45 @@ export default function DashboardScreen() {
             <Text style={styles.streakText}>{data.streak_days} j</Text>
           </View>
         ) : null}
+      </View>
+
+      <View style={styles.probeHeroCard}>
+        <View style={styles.probeVisual}>
+          <SondeViewer variant="violet" size={150} />
+          <View style={[styles.probeStatusBadge, isProbeConnected ? styles.probeStatusConnected : styles.probeStatusIdle]}>
+            {isProbeConnected ? (
+              <BluetoothConnected size={18} color={colors.surface} />
+            ) : (
+              <Bluetooth size={18} color={colors.surface} />
+            )}
+          </View>
+        </View>
+
+        <View style={styles.probeContent}>
+          <Text style={styles.probeEyebrow}>Sonde Périnéa</Text>
+          <Text style={styles.probeTitle}>
+            {isProbeConnected ? deviceName || "Sonde connectée" : "Aucune sonde connectée"}
+          </Text>
+          <Text style={styles.probeText}>
+            {isProbeConnected
+              ? `Connexion ${connectionType === "wifi" ? "Wi-Fi" : "Bluetooth"} active. Les exercices interactifs peuvent utiliser la sonde.`
+              : "Connectez votre sonde pour mesurer les exercices, ou continuez avec le mode tactile sans score musculaire."}
+          </Text>
+
+          <View style={styles.probeActions}>
+            <Pressable style={styles.probePrimaryButton} onPress={() => router.push("/connect")}>
+              <Bluetooth size={18} color={colors.surface} />
+              <Text style={styles.probePrimaryText}>
+                {isProbeConnected ? "Gérer la sonde" : "Connecter la sonde"}
+              </Text>
+              <ChevronRight size={18} color={colors.surface} />
+            </Pressable>
+            <Pressable style={styles.probeSecondaryButton} onPress={() => router.push("/game-hub" as never)}>
+              <Gamepad2 size={17} color={colors.plum} />
+              <Text style={styles.probeSecondaryText}>Mode tactile</Text>
+            </Pressable>
+          </View>
+        </View>
       </View>
 
       {hasActivity ? (
@@ -86,7 +139,7 @@ export default function DashboardScreen() {
         </View>
       )}
 
-      {noProbeMode ? (
+      {!isProbeConnected ? (
         <View style={styles.noProbeCard}>
           <View style={styles.noProbeIcon}>
             <CalendarCheck2 size={22} color={colors.surface} />
@@ -101,31 +154,6 @@ export default function DashboardScreen() {
           </View>
         </View>
       ) : null}
-
-      <Section title="Appareil">
-        <View style={styles.deviceCard}>
-          <View style={styles.deviceIcon}>
-            <Cpu size={20} color={colors.surface} />
-          </View>
-          <View style={styles.flex}>
-            <Text style={styles.deviceName}>{data.device.device_name || "Aucune sonde connectée"}</Text>
-            <Text style={styles.deviceStatus}>
-              {data.device.connected ? `Connecté · ${data.device.battery_pct}%` : "Déconnecté"}
-            </Text>
-          </View>
-          <View style={styles.deviceMetrics}>
-            <Battery size={16} color={colors.plum} />
-            <Signal size={16} color={colors.plum} />
-          </View>
-        </View>
-        {!data.device.connected ? (
-          <Pressable style={styles.connectLaterButton} onPress={() => router.push("/connect")}>
-            <Text style={styles.connectLaterText}>
-              {hasProbe ? "Connecter une sonde" : "Ajouter une sonde plus tard"}
-            </Text>
-          </Pressable>
-        ) : null}
-      </Section>
 
       <Section title="Conseils">
         {data.tips.map((tip) => (
@@ -181,6 +209,96 @@ const styles = StyleSheet.create({
   },
   streakText: { fontWeight: "800", color: colors.plum },
   statsContainer: { flexDirection: "row", gap: spacing.sm },
+  probeHeroCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.lg,
+    gap: spacing.lg,
+    overflow: "hidden",
+  },
+  probeVisual: {
+    height: 164,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.surfaceAlt,
+    borderRadius: radius.xl,
+    position: "relative",
+  },
+  probeStatusBadge: {
+    position: "absolute",
+    right: spacing.md,
+    bottom: spacing.md,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  probeStatusConnected: {
+    backgroundColor: colors.success,
+  },
+  probeStatusIdle: {
+    backgroundColor: colors.plum,
+  },
+  probeContent: {
+    gap: spacing.sm,
+  },
+  probeEyebrow: {
+    color: colors.coral,
+    fontSize: 12,
+    fontWeight: "900",
+    textTransform: "uppercase",
+  },
+  probeTitle: {
+    color: colors.plum,
+    fontSize: 22,
+    fontWeight: "900",
+  },
+  probeText: {
+    color: colors.textMuted,
+    lineHeight: 21,
+    fontWeight: "600",
+  },
+  probeActions: {
+    gap: spacing.sm,
+    marginTop: spacing.sm,
+  },
+  probePrimaryButton: {
+    minHeight: 54,
+    borderRadius: 999,
+    backgroundColor: colors.plum,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.sm,
+    paddingHorizontal: spacing.lg,
+  },
+  probePrimaryText: {
+    color: colors.surface,
+    fontWeight: "900",
+    fontSize: 15,
+    flexShrink: 1,
+    textAlign: "center",
+  },
+  probeSecondaryButton: {
+    minHeight: 48,
+    borderRadius: 999,
+    backgroundColor: colors.surfaceAlt,
+    borderWidth: 1,
+    borderColor: colors.border,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.xs,
+    paddingHorizontal: spacing.md,
+  },
+  probeSecondaryText: {
+    color: colors.plum,
+    fontWeight: "900",
+    fontSize: 14,
+  },
   emptyCard: {
     gap: spacing.lg,
     backgroundColor: colors.surface,
@@ -267,39 +385,6 @@ const styles = StyleSheet.create({
   sessionColor: { width: 5, height: 44, borderRadius: 99 },
   sessionTitle: { fontSize: 16, fontWeight: "800", color: colors.text },
   sessionMeta: { fontSize: 13, color: colors.textMuted, marginTop: 3 },
-  deviceCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: colors.surface,
-    padding: spacing.lg,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  deviceIcon: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: colors.plum,
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: spacing.md,
-  },
-  deviceName: { fontSize: 16, fontWeight: "900", color: colors.text },
-  deviceStatus: { fontSize: 13, color: colors.textMuted, marginTop: 3 },
-  deviceMetrics: { flexDirection: "row", gap: 10 },
-  connectLaterButton: {
-    backgroundColor: colors.surface,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: colors.border,
-    paddingVertical: 12,
-    alignItems: "center",
-  },
-  connectLaterText: {
-    color: colors.plum,
-    fontWeight: "900",
-  },
   tipCard: {
     flexDirection: "row",
     alignItems: "center",

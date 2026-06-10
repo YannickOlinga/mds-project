@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
 /**
  * SondeViewer — Affiche le modèle 3D de la sonde (.glb) via WebView + model-viewer.
  * Le modèle est chargé depuis les assets locaux et encodé en base64.

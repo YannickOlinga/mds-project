@@ -122,6 +122,10 @@ export default function ProfileScreen() {
           disabled={updateSettings.isPending}
           onValueChange={(darkMode) => saveSetting({ darkMode })}
         />
+        <Pressable style={styles.secondaryButton} onPress={() => router.push("/settings" as never)}>
+          <Settings size={18} color={colors.plum} />
+          <Text style={styles.secondaryText}>Ouvrir tous les paramètres</Text>
+        </Pressable>
       </View>
 
       <View style={styles.card}>

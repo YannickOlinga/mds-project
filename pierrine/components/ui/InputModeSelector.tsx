@@ -35,7 +35,7 @@ export default function InputModeSelector() {
             Écran tactile
           </Text>
           <Text style={[s.optionSub, inputMode === 'phone' && s.optionSubActive]}>
-            Appuie sur l'écran
+            {"Appuie sur l'écran"}
           </Text>
         </Pressable>
 

@@ -41,8 +41,11 @@ export default function RootLayout() {
           <Stack.Screen name="register" />
           <Stack.Screen name="connect" />
           <Stack.Screen name="connected" />
+          <Stack.Screen name="device-settings" />
+          <Stack.Screen name="notifications" />
           <Stack.Screen name="questionnaire" />
           <Stack.Screen name="edit-profile" />
+          <Stack.Screen name="settings" />
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="game" />
           <Stack.Screen name="game-hub" />

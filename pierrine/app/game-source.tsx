@@ -16,7 +16,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 
-import { ACTION_UI, PROTOCOLS, isContractPhase, phaseAt, totalDurMs, type ExPhase, type Protocol } from '@/lib/exercises';
+import { ACTION_UI, PROTOCOLS, isContractPhase, phaseAt, totalDurMs, type ExPhase } from '@/lib/exercises';
 import { touchSignal } from '@/services/touchSignal';
 import { useDeviceStore } from '@/store/deviceStore';
 
@@ -129,7 +129,7 @@ export default function SourceGame() {
         </Pressable>
         <Text style={s.selectEmoji}>💧</Text>
         <Text style={s.selectTitle}>La Source</Text>
-        <Text style={s.selectSub}>Maintiens le niveau d'eau dans la zone cible</Text>
+        <Text style={s.selectSub}>{"Maintiens le niveau d'eau dans la zone cible"}</Text>
         <View style={s.legend}>
           <View style={s.legendItem}><Text style={s.legendText}>💪 Zone haute → Contractez</Text></View>
           <View style={s.legendItem}><Text style={s.legendText}>💤 Zone centre → Reposez</Text></View>
@@ -156,13 +156,11 @@ export default function SourceGame() {
 
   const phaseUI = currentPhase ? ACTION_UI[currentPhase.action] : null;
   const tc      = currentPhase ? targetCenter(currentPhase.action) : 0.5;
-  const zoneMin = tc - ZONE_H / 2;
   const zoneMax = tc + ZONE_H / 2;
   const wl      = waterLevel.current;
 
   // Positions en pixels dans la barre
   const pxFromLevel = (lvl: number) => BAR_TOP + BAR_H * (1 - lvl);
-  const waterPx  = pxFromLevel(wl);
   const zoneTopPx = pxFromLevel(zoneMax);
   const zoneHPx   = BAR_H * ZONE_H;
   const waterFillH = BAR_H * wl;
