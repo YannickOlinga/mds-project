@@ -37,7 +37,7 @@ type Ring = {
 
 type GameState = 'select' | 'playing' | 'complete';
 const RING_COLORS = { contract: '#C95F7B', relax: '#5A77C0' };
-const RING_LABELS = { contract: '💪', relax: '🌸' };
+const RING_LABELS = { contract: '', relax: '' };
 
 export default function EclipseGame() {
   const [, tick]        = useState(0);
@@ -49,7 +49,7 @@ export default function EclipseGame() {
   const [exProgress, setExProgress]     = useState(0);
   const [feedback, setFeedback]         = useState<'good' | 'miss' | null>(null);
 
-  const connectedDevice = useDeviceStore((s) => s.connectedDevice);
+  const inputMode = useDeviceStore((s) => s.inputMode);
 
   const pressed    = useRef(false);
   const rings      = useRef<Ring[]>([]);
@@ -117,8 +117,8 @@ export default function EclipseGame() {
         setExProgress(Math.min(1, exMs.current / totalDurMs(proto)));
       }
 
-      const isBle    = useDeviceStore.getState().connectedDevice !== null;
-      const isActive = isBle ? touchSignal.isPressed : pressed.current;
+      const isIot    = useDeviceStore.getState().inputMode === 'iot';
+      const isActive = isIot ? touchSignal.isPressed : pressed.current;
       contLevel.current += ((isActive ? 1 : 0) - contLevel.current) * 0.12;
 
       // Expansion des anneaux
@@ -163,8 +163,8 @@ export default function EclipseGame() {
     }, 1000 / FPS);
   }, [stop, spawnRing, combo]);
 
-  const onPressIn  = () => { if (!connectedDevice) pressed.current = true; };
-  const onPressOut = () => { if (!connectedDevice) pressed.current = false; };
+  const onPressIn  = () => { if (inputMode === 'phone') pressed.current = true; };
+  const onPressOut = () => { if (inputMode === 'phone') pressed.current = false; };
 
   if (gameState === 'select') {
     return (
@@ -197,8 +197,7 @@ export default function EclipseGame() {
     );
   }
 
-  const isBle    = useDeviceStore.getState().connectedDevice !== null;
-  const isActive = isBle ? touchSignal.isPressed : pressed.current;
+  const isActive = inputMode === 'iot' ? touchSignal.isPressed : pressed.current;
   const phaseUI  = currentPhase ? ACTION_UI[currentPhase.action] : null;
 
   return (

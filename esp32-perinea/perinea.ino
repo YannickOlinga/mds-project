@@ -12,9 +12,9 @@
 #define SERVICE_UUID    "f3641400-00b0-4240-ba50-05ca45bf8abc"
 #define TOUCH_CHAR_UUID "f3641401-00b0-4240-ba50-05ca45bf8abc"
 
-// WiFi credentials — à remplacer
-const char* WIFI_SSID = "YourWiFiSSID";
-const char* WIFI_PASSWORD = "YourWiFiPassword";
+// WiFi credentials
+const char* WIFI_SSID = "Yannick";
+const char* WIFI_PASSWORD = "00000000";
 
 struct TouchSensor {
   byte wasPressed = LOW;

@@ -158,8 +158,9 @@ export default function GameScreen() {
   const [currentPhase, setCurrentPhase] = useState<ExPhase | null>(null);
   const [exProgress, setExProgress]     = useState(0);
 
-  // Sonde physique connectée → signal BLE prioritaire sur le tactile
+  // Source d'entrée choisie par le joueur (sonde IoT ou écran tactile)
   const connectedDevice = useDeviceStore((s) => s.connectedDevice);
+  const inputMode = useDeviceStore((s) => s.inputMode);
 
   const birdY     = useRef(H / 2);
   const [encouragement, setEncouragement] = useState<string | null>(null);
@@ -228,8 +229,8 @@ export default function GameScreen() {
     gameLoopRef.current = setInterval(() => {
       if (!running.current) return;
 
-      const isBleConn = useDeviceStore.getState().connectedDevice !== null;
-      const isActive  = isBleConn ? touchSignal.isPressed : pressed.current;
+      const isIot    = useDeviceStore.getState().inputMode === 'iot';
+      const isActive = isIot ? touchSignal.isPressed : pressed.current;
       const half      = BIRD_SIZE / 2;
       const bL        = BIRD_X - half + 8;
       const bR        = BIRD_X + half - 8;
@@ -345,8 +346,8 @@ export default function GameScreen() {
   }, [stop, addPipe]);
 
   // Quand une sonde est connectée, le signal tactile est ignoré (BLE prioritaire)
-  const onPressIn  = () => { if (!connectedDevice) pressed.current = true; };
-  const onPressOut = () => { if (!connectedDevice) pressed.current = false; };
+  const onPressIn  = () => { if (inputMode === 'phone') pressed.current = true; };
+  const onPressOut = () => { if (inputMode === 'phone') pressed.current = false; };
 
   const birdRot = Math.max(-30, Math.min(45, vel.current * 4));
   const phaseUI = currentPhase ? ACTION_UI[currentPhase.action] : null;

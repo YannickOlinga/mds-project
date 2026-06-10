@@ -13,8 +13,15 @@ import {
   unsubscribeFromSensorWifi,
 } from "@/services/wifi";
 import { touchSignal } from "@/services/touchSignal";
-import type { BluetoothConnectionState, ConnectionType, PeripheralDevice } from "@/types/device";
+import type {
+  BluetoothConnectionState,
+  ConnectionType,
+  InputMode,
+  PeripheralDevice,
+} from "@/types/device";
 import { getErrorMessage } from "@/utils/apiError";
+
+const SCAN_DURATION_MS = 15000;
 
 type DeviceState = {
   state: BluetoothConnectionState;
@@ -22,11 +29,13 @@ type DeviceState = {
   connectedDevice: PeripheralDevice | null;
   error: string | null;
   connectionType: ConnectionType;
+  inputMode: InputMode;
   stopScan?: () => void;
 };
 
 type DeviceActions = {
   setConnectionType: (type: ConnectionType) => void;
+  setInputMode: (mode: InputMode) => void;
   scan: () => Promise<void>;
   connect: (deviceId: string) => Promise<void>;
   disconnectLocal: () => void;
@@ -39,6 +48,7 @@ const initialState: DeviceState = {
   connectedDevice: null,
   error: null,
   connectionType: "ble",
+  inputMode: "phone",
 };
 
 export const useDeviceStore = create<DeviceState & DeviceActions>((set, get) => ({
@@ -46,6 +56,10 @@ export const useDeviceStore = create<DeviceState & DeviceActions>((set, get) => 
 
   setConnectionType: (type: ConnectionType) => {
     set({ connectionType: type, devices: [], error: null });
+  },
+
+  setInputMode: (mode: InputMode) => {
+    set({ inputMode: mode });
   },
 
   scan: async () => {
@@ -81,7 +95,23 @@ export const useDeviceStore = create<DeviceState & DeviceActions>((set, get) => 
         },
         (error) => set({ state: "error", error: getErrorMessage(error) })
       );
-      set({ stopScan });
+
+      // Fin automatique du scan après 15 s : on arrête la recherche et on
+      // revient à un état stable (les sondes trouvées restent affichées).
+      const scanTimer = setTimeout(() => {
+        const current = get();
+        if (current.state === "scanning") {
+          current.stopScan?.();
+          set({ state: current.devices.length > 0 ? "idle" : "disconnected", stopScan: undefined });
+        }
+      }, SCAN_DURATION_MS);
+
+      set({
+        stopScan: () => {
+          clearTimeout(scanTimer);
+          stopScan();
+        },
+      });
     } catch (error) {
       set({ state: "error", error: getErrorMessage(error) });
     }
@@ -95,7 +125,12 @@ export const useDeviceStore = create<DeviceState & DeviceActions>((set, get) => 
       const isWifi = connectionType === "wifi";
       const connectFn = isWifi ? connectPeripheralWifi : connectPeripheral;
       const connectedDevice = await connectFn(deviceId);
-      set({ state: "connected", connectedDevice: { ...connectedDevice, connectionType } });
+      // La sonde vient d'être connectée → on bascule sur le mode IoT par défaut.
+      set({
+        state: "connected",
+        connectedDevice: { ...connectedDevice, connectionType },
+        inputMode: "iot",
+      });
     } catch (error) {
       set({ state: "error", error: getErrorMessage(error) });
     }
@@ -109,7 +144,8 @@ export const useDeviceStore = create<DeviceState & DeviceActions>((set, get) => 
     get().stopScan?.();
     unsubscribe();
     touchSignal.reset();
-    set({ state: "disconnected", connectedDevice: null, stopScan: undefined });
+    // Plus de sonde → on repasse au toucher écran pour que les jeux restent jouables.
+    set({ state: "disconnected", connectedDevice: null, stopScan: undefined, inputMode: "phone" });
   },
 
   reset: () => {

@@ -2,6 +2,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import InputModeSelector from '@/components/ui/InputModeSelector';
+
 type GameCard = {
   id: string;
   emoji: string;
@@ -21,7 +23,7 @@ const GAMES: GameCard[] = [
     description: 'Guide le papillon à travers les obstacles',
     objective: 'Coordination & navigation',
     route: '/game',
-    gradient: ['#571534', '#C95F7B'],
+    gradient: ['#C95F7B', '#C95F7B'],
   },
   {
     id: 'bulles',
@@ -30,7 +32,7 @@ const GAMES: GameCard[] = [
     description: 'Attrape les bulles en ajustant ta contraction',
     objective: 'Précision & positionnement',
     route: '/game-bulles',
-    gradient: ['#1A3A5C', '#2E86C1'],
+    gradient: ['#1A3A5C', '#1A3A5C'],
     isNew: true,
   },
   {
@@ -40,7 +42,7 @@ const GAMES: GameCard[] = [
     description: 'Synchronise tes contractions avec les anneaux',
     objective: 'Rythme & timing',
     route: '/game-eclipse',
-    gradient: ['#2C0A3E', '#7B2FBE'],
+    gradient: ['#2C0A3E', '#2C0A3E'],
     isNew: true,
   },
   {
@@ -50,7 +52,7 @@ const GAMES: GameCard[] = [
     description: 'Maintiens le niveau d\'eau dans la zone cible',
     objective: 'Endurance & contrôle',
     route: '/game-source',
-    gradient: ['#0D3B2E', '#27AE60'],
+    gradient: ['#0D3B2E', '#0D3B2E'],
     isNew: true,
   },
 ];
@@ -64,7 +66,7 @@ export default function GameHub() {
 
       <Text style={s.title}>Exercices Interactifs</Text>
       <Text style={s.subtitle}>
-        Tous les jeux sont contrôlés par tes contractions périnéales
+        Choisis ton mode de jeu, puis sélectionne un exercice
       </Text>
 
       <ScrollView
@@ -72,6 +74,8 @@ export default function GameHub() {
         contentContainerStyle={s.listContent}
         showsVerticalScrollIndicator={false}
       >
+        <InputModeSelector />
+
         {GAMES.map((game) => (
           <Pressable key={game.id} onPress={() => router.push(game.route as never)}>
             <LinearGradient colors={game.gradient} style={s.card}>
@@ -89,7 +93,7 @@ export default function GameHub() {
                 <Text style={s.cardArrow}>›</Text>
               </View>
               <View style={s.objectivePill}>
-                <Text style={s.objectiveText}>🎯 {game.objective}</Text>
+                <Text style={s.objectiveText}>{game.objective}</Text>
               </View>
             </LinearGradient>
           </Pressable>
@@ -97,10 +101,10 @@ export default function GameHub() {
 
         <View style={s.tip}>
           <Text style={s.tipText}>
-            💡 Maintenez appuyé = contraction · Relâchez = repos
+             Maintenez appuyé = contraction · Relâchez = repos
           </Text>
           <Text style={s.tipSub}>
-            Compatible sonde Bluetooth lorsqu'elle est connectée
+            Mode sonde IoT (Bluetooth/WiFi) ou écran tactile, au choix
           </Text>
         </View>
       </ScrollView>

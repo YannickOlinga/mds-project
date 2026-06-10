@@ -49,7 +49,7 @@ export default function SourceGame() {
   const [exProgress, setExProgress]     = useState(0);
   const [inZone, setInZone]             = useState(false);
 
-  const connectedDevice = useDeviceStore((s) => s.connectedDevice);
+  const inputMode = useDeviceStore((s) => s.inputMode);
 
   const waterLevel = useRef(0.4);  // 0–1
   const pressed    = useRef(false);
@@ -93,8 +93,8 @@ export default function SourceGame() {
         setExProgress(Math.min(1, exMs.current / totalDurMs(proto)));
       }
 
-      const isBle    = useDeviceStore.getState().connectedDevice !== null;
-      const isActive = isBle ? touchSignal.isPressed : pressed.current;
+      const isIot    = useDeviceStore.getState().inputMode === 'iot';
+      const isActive = isIot ? touchSignal.isPressed : pressed.current;
 
       // Niveau d'eau
       if (isActive) {
@@ -118,8 +118,8 @@ export default function SourceGame() {
     }, 1000 / FPS);
   }, [stop]);
 
-  const onPressIn  = () => { if (!connectedDevice) pressed.current = true; };
-  const onPressOut = () => { if (!connectedDevice) pressed.current = false; };
+  const onPressIn  = () => { if (inputMode === 'phone') pressed.current = true; };
+  const onPressOut = () => { if (inputMode === 'phone') pressed.current = false; };
 
   if (gameState === 'select') {
     return (

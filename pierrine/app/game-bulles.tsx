@@ -1,12 +1,4 @@
-/**
- * Bulles de Lumière — Jeu d'attrape
- *
- * Des bulles traversent l'écran de droite à gauche à des hauteurs
- * dictées par l'exercice (haut = contraction, bas = relâchement).
- * Le joueur ajuste sa position verticale pour les intercepter.
- *
- * Contrôle : Maintenir = monter · Relâcher = descendre
- */
+
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Dimensions, Pressable, StyleSheet, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -45,7 +37,7 @@ export default function BullesGame() {
   const [currentPhase, setCurrentPhase] = useState<ExPhase | null>(null);
   const [exProgress, setExProgress]   = useState(0);
 
-  const connectedDevice = useDeviceStore((s) => s.connectedDevice);
+  const inputMode = useDeviceStore((s) => s.inputMode);
 
   const playerY   = useRef(H / 2);
   const vel       = useRef(0);
@@ -118,8 +110,8 @@ export default function BullesGame() {
         setExProgress(Math.min(1, exMs.current / totalDurMs(proto)));
       }
 
-      const isBle    = useDeviceStore.getState().connectedDevice !== null;
-      const isActive = isBle ? touchSignal.isPressed : pressed.current;
+      const isIot    = useDeviceStore.getState().inputMode === 'iot';
+      const isActive = isIot ? touchSignal.isPressed : pressed.current;
 
       if (isActive) vel.current = Math.max(vel.current - LIFT, -MAX_VEL);
       vel.current    = Math.min(vel.current + GRAVITY, MAX_VEL);
@@ -157,8 +149,8 @@ export default function BullesGame() {
     }, 1000 / FPS);
   }, [stop, spawnBubble]);
 
-  const onPressIn  = () => { if (!connectedDevice) pressed.current = true; };
-  const onPressOut = () => { if (!connectedDevice) pressed.current = false; };
+  const onPressIn  = () => { if (inputMode === 'phone') pressed.current = true; };
+  const onPressOut = () => { if (inputMode === 'phone') pressed.current = false; };
 
   if (gameState === 'select') {
     return <ProtocolSelect protocols={PROTOCOLS_WITH_SPAWN} selected={protocol} onSelect={setProtocol} onStart={startGame} />;
@@ -287,8 +279,7 @@ function CompleteOverlay({ score, missed, protocol, onRestart }: { score: number
     </View>
   );
 }
-
-// Étoiles de fond pré-calculées
+ 
 const STARS = Array.from({ length: 40 }, () => ({
   x: Math.random() * W,
   y: Math.random() * H,

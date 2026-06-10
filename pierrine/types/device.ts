@@ -9,6 +9,13 @@ export type BluetoothConnectionState =
 
 export type ConnectionType = "ble" | "wifi";
 
+/**
+ * Source d'entrée choisie par le joueur pour piloter les jeux :
+ * - "iot"   → la sonde ESP32 (signal BLE/WiFi)
+ * - "phone" → le toucher de l'écran du téléphone
+ */
+export type InputMode = "iot" | "phone";
+
 export type PeripheralDevice = {
   id: string;
   name: string;

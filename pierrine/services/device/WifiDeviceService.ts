@@ -1,10 +1,29 @@
 import { Platform } from 'react-native';
+import * as Network from 'expo-network';
 import { touchSignal } from '@/services/touchSignal';
 import type { PeripheralDevice } from '@/types/device';
 
-const SCAN_TIMEOUT = 10000; // 10 secondes
+const SCAN_TIMEOUT = 15000; // 15 secondes
 const DISCOVERY_PORT = 81;
 const POLLING_INTERVAL = 100; // 100ms entre les polls
+const PROBE_TIMEOUT = 1500;   // timeout par IP
+const MAX_CONCURRENT = 40;    // requêtes simultanées max
+
+/**
+ * Récupère l'IP locale du téléphone et en déduit le préfixe /24 (ex: "10.144.158").
+ * Permet de scanner le bon sous-réseau quel que soit le réseau (box, hotspot...).
+ */
+async function getLocalSubnet(): Promise<string | null> {
+  try {
+    const ip = await Network.getIpAddressAsync();
+    if (!ip || ip === '0.0.0.0') return null;
+    const parts = ip.split('.');
+    if (parts.length !== 4) return null;
+    return `${parts[0]}.${parts[1]}.${parts[2]}`;
+  } catch {
+    return null;
+  }
+}
 
 let activeIP: string | null = null;
 let pollIntervalId: ReturnType<typeof setInterval> | null = null;
@@ -18,66 +37,70 @@ async function scanLocalNetwork(
   onDevice: (device: PeripheralDevice) => void,
   onError: (error: Error) => void
 ): Promise<() => void> {
-  const subnets = [
-    '192.168.1',
-    '192.168.0',
-    '192.168.100',
-    '10.0.0',
-  ];
-
-  const discoveredIPs = new Set<string>();
-  let activeRequests = 0;
-  let scanComplete = false;
   let cancelled = false;
-
   const cleanup = () => {
     cancelled = true;
   };
 
-  async function probeIP(ip: string) {
-    if (cancelled) return;
-    activeRequests++;
+  // Sous-réseau du téléphone détecté automatiquement, en priorité.
+  const detected = await getLocalSubnet();
+  const fallbacks = [
+    '172.20.10',   // Partage de connexion iPhone
+    '192.168.43',  // Partage de connexion Android
+    '192.168.1',
+    '192.168.0',
+  ];
+  const subnets = [...new Set([detected, ...fallbacks].filter(Boolean) as string[])];
 
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 2000);
-
-      const response = await fetch(`http://${ip}:81/`, {
-        method: 'GET',
-        signal: controller.signal,
-      }).catch(() => null);
-
-      clearTimeout(timeoutId);
-
-      if (response && response.ok && !discoveredIPs.has(ip)) {
-        discoveredIPs.add(ip);
-        onDevice({
-          id: ip,
-          name: `Perinea-${ip.split('.')[3]}`,
-          rssi: null,
-        });
-      }
-    } catch (e) {
-      // Expected timeouts
-    } finally {
-      activeRequests--;
-    }
+  if (detected) {
+    console.log(`[WiFi] Sous-réseau détecté : ${detected}.x — scan en cours...`);
+  } else {
+    console.warn('[WiFi] IP du téléphone introuvable — scan des sous-réseaux courants.');
   }
 
-  // Lancer les probes pour tous les IPs potentiels
-  const promises: Promise<void>[] = [];
+  const discoveredIPs = new Set<string>();
+
+  async function probeIP(ip: string): Promise<boolean> {
+    if (cancelled) return false;
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), PROBE_TIMEOUT);
+
+    const response = await fetch(`http://${ip}:${DISCOVERY_PORT}/`, {
+      method: 'GET',
+      signal: controller.signal,
+    }).catch(() => null);
+
+    clearTimeout(timeoutId);
+
+    if (response && response.ok && !discoveredIPs.has(ip)) {
+      discoveredIPs.add(ip);
+      onDevice({
+        id: ip,
+        name: `Perinea-${ip.split('.')[3]}`,
+        rssi: null,
+      });
+      return true;
+    }
+    return false;
+  }
+
+  // Liste de toutes les IP à sonder
+  const targets: string[] = [];
   for (const subnet of subnets) {
-    for (let i = 1; i <= 254; i++) {
-      const ip = `${subnet}.${i}`;
-      promises.push(probeIP(ip));
-    }
+    for (let i = 1; i <= 254; i++) targets.push(`${subnet}.${i}`);
   }
 
-  scanComplete = true;
+  // Scan par lots pour ne pas saturer la pile réseau de React Native
+  const runScan = async () => {
+    for (let i = 0; i < targets.length && !cancelled; i += MAX_CONCURRENT) {
+      const batch = targets.slice(i, i + MAX_CONCURRENT);
+      await Promise.all(batch.map(probeIP));
+    }
+  };
 
-  // Attendre max 10s ou la fin de tous les probes
   await Promise.race([
-    Promise.all(promises),
+    runScan(),
     new Promise(r => setTimeout(r, SCAN_TIMEOUT)),
   ]).catch(() => {
     /* timeout ok */
