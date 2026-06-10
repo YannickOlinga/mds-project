@@ -1,392 +1,313 @@
-import { View, Text, StyleSheet, ScrollView, Pressable } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import { Activity, Battery, CalendarCheck2, Cpu, Flame, Play, Signal } from "lucide-react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { router } from "expo-router";
-import { useState } from "react";
-import { useEffect } from "react";
+import type { ReactNode } from "react";
 
-import { getDashboard } from "@/lib/api";
+import BrandLogo from "@/components/ui/BrandLogo";
+import EmptyState from "@/components/ui/EmptyState";
+import ErrorState from "@/components/ui/ErrorState";
+import LoadingScreen from "@/components/ui/LoadingScreen";
+import { colors, gradients } from "@/constants/theme/colors";
+import { radius, spacing } from "@/constants/theme/spacing";
+import { useDashboardQuery, useProfileQuery } from "@/hooks/useApiQueries";
 
-interface Session {
-  id: number;
-  title: string;
-  duration: string;
-  level: string;
-  color: string;
+function firstNameFromProfile(profileName?: string) {
+  return profileName?.trim().split(" ")[0] ?? "Bonjour";
 }
 
 export default function DashboardScreen() {
-  const [streak, setStreak] = useState(7);
-  const [sessionsThisWeek, setSessionsThisWeek] = useState(5);
-  const [totalMinutes, setTotalMinutes] = useState(45);
-  const [objectivePercent, setObjectivePercent] = useState(85);
+  const dashboard = useDashboardQuery();
+  const profile = useProfileQuery();
 
-  const [upcomingSessions, setUpcomingSessions] = useState<Session[]>([
-    {
-      id: 1,
-      title: "Renforcement de base",
-      duration: "15 min",
-      level: "Débutant",
-      color: "#B9657C",
-    },
-    {
-      id: 2,
-      title: "Contrôle musculaire",
-      duration: "20 min",
-      level: "Intermédiaire",
-      color: "#6A1E3A",
-    },
-    {
-      id: 3,
-      title: "Endurance avancée",
-      duration: "25 min",
-      level: "Avancé",
-      color: "#D4A5A5",
-    },
-  ]);
+  if (dashboard.isLoading || profile.isLoading) {
+    return <LoadingScreen label="Chargement de votre tableau de bord" />;
+  }
 
-  const [tips, setTips] = useState([
-    { id: 1, text: "Respirez profondément pendant les exercices", icon: "🌬️" },
-    { id: 2, text: "Maintenez une posture droite", icon: "🧘" },
-    { id: 3, text: "Hydratez-vous régulièrement", icon: "💧" },
-  ]);
+  if (dashboard.isError) {
+    return <ErrorState error={dashboard.error} onRetry={() => void dashboard.refetch()} />;
+  }
 
-  const [device, setDevice] = useState({
-    deviceName: "Périnea #A4F2B",
-    batteryPct: 85,
-    signalLevel: "Excellent",
-    connected: true,
-  });
+  const data = dashboard.data;
+  if (!data) {
+    return <EmptyState title="Aucune donnée" message="Votre tableau de bord sera disponible après connexion." />;
+  }
 
-  useEffect(() => {
-    getDashboard(1)
-      .then((data: any) => {
-        setStreak(data.streak_days);
-        setSessionsThisWeek(data.sessions_this_week);
-        setTotalMinutes(data.total_minutes);
-        setObjectivePercent(data.objective_percent);
-        setUpcomingSessions(data.upcoming_sessions);
-        setTips(data.tips);
-        setDevice({
-          deviceName: data.device.device_name,
-          batteryPct: data.device.battery_pct,
-          signalLevel: data.device.signal_level,
-          connected: data.device.connected,
-        });
-      })
-      .catch(() => {
-        // Fallback: garde les données mock si le backend n'est pas accessible.
-      });
-  }, []);
+  const name = profile.data?.personalInfo.find((item) => item.label === "Nom")?.value;
+  const totalSessions = profile.data?.stats.sessions_total ?? 0;
+  const hasActivity = totalSessions > 0;
+  const hasProbe = profile.data?.has_probe === true;
+  const noProbeMode = !data.device.connected;
 
   return (
-    <ScrollView style={styles.container}>
-      {/* Header */}
+    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      <View style={styles.logoWrap}>
+        <BrandLogo />
+      </View>
+
       <View style={styles.header}>
         <View>
-          <Text style={styles.greeting}>Bonjour !</Text>
-          <Text style={styles.subtitle}>Votre allié périnée au quotidien</Text>
+          <Text style={styles.greeting}>Bonjour {firstNameFromProfile(name)}</Text>
+          <Text style={styles.subtitle}>
+            {hasActivity ? "Suivi basé sur vos sessions enregistrées" : "Aucune donnée de suivi enregistrée"}
+          </Text>
         </View>
-        <View style={styles.streakBadge}>
-          <Text style={styles.streakIcon}>🔥</Text>
-          <Text style={styles.streakText}>{streak} jours</Text>
-        </View>
+        {hasActivity ? (
+          <View style={styles.streakBadge}>
+            <Flame size={17} color={colors.plum} />
+            <Text style={styles.streakText}>{data.streak_days} j</Text>
+          </View>
+        ) : null}
       </View>
 
-      {/* Stats Cards */}
-      <View style={styles.statsContainer}>
-        <View style={styles.statCard}>
-          <Text style={styles.statNumber}>{sessionsThisWeek}</Text>
-          <Text style={styles.statLabel}>Séances</Text>
-          <Text style={styles.statSublabel}>cette semaine</Text>
+      {hasActivity ? (
+        <View style={styles.statsContainer}>
+          <Stat value={data.sessions_this_week} label="Séances" sub="semaine" />
+          <Stat value={data.total_time_formatted} label="Temps" sub="total" />
+          <Stat value={`${data.objective_percent}%`} label="Objectif" sub="mensuel" />
         </View>
-        <View style={styles.statCard}>
-          <Text style={styles.statNumber}>{totalMinutes}</Text>
-          <Text style={styles.statLabel}>Minutes</Text>
-          <Text style={styles.statSublabel}>temps total</Text>
-        </View>
-        <View style={styles.statCard}>
-          <Text style={styles.statNumber}>{objectivePercent}%</Text>
-          <Text style={styles.statLabel}>Objectif</Text>
-          <Text style={styles.statSublabel}>atteint</Text>
-        </View>
-      </View>
-
-      {/* Quick Start Section */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Commencer l&apos;entraînement</Text>
-        <LinearGradient
-          colors={["#B9657C", "#6A1E3A"]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 0 }}
-          style={styles.quickStartCard}
-        >
-          <Pressable onPress={() => router.replace("/(tabs)/training" as any)}>
-            <View style={styles.quickStartContent}>
-              <Text style={styles.quickStartTitle}>Session rapide</Text>
-              <Text style={styles.quickStartSubtitle}>10 minutes • Niveau débutants</Text>
-              <View style={styles.playButton}>
-                <Text style={styles.playIcon}>▶</Text>
+      ) : (
+        <View style={styles.emptyCard}>
+          <EmptyState
+            title="Aucune session enregistrée"
+            message="Vos statistiques, objectifs et historiques apparaîtront après votre première séance terminée."
+          />
+          <LinearGradient colors={gradients.primary} style={styles.quickStartCard}>
+            <Pressable style={styles.quickStartContent} onPress={() => router.push("/(tabs)/training")}>
+              <View style={styles.quickStartTextBlock}>
+                <Text style={styles.quickStartTitle}>Commencer un entraînement</Text>
+                <Text style={styles.quickStartSubtitle}>Choisir un programme adapté à mon profil</Text>
               </View>
-            </View>
-          </Pressable>
-        </LinearGradient>
-      </View>
+              <View style={styles.playButton}>
+                <Play size={22} color={colors.plum} fill={colors.surface} />
+              </View>
+            </Pressable>
+          </LinearGradient>
+        </View>
+      )}
 
-      {/* Upcoming Sessions */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Séances à venir</Text>
-        {upcomingSessions.map((session) => (
-          <Pressable key={session.id} style={styles.sessionCard}>
-            <View style={[styles.sessionColor, { backgroundColor: session.color }]} />
-            <View style={styles.sessionInfo}>
-              <Text style={styles.sessionTitle}>{session.title}</Text>
-              <Text style={styles.sessionMeta}>
-                {session.duration} • {session.level}
-              </Text>
-            </View>
-            <Text style={styles.sessionArrow}>›</Text>
-          </Pressable>
-        ))}
-      </View>
+      {noProbeMode ? (
+        <View style={styles.noProbeCard}>
+          <View style={styles.noProbeIcon}>
+            <CalendarCheck2 size={22} color={colors.surface} />
+          </View>
+          <View style={styles.flex}>
+            <Text style={styles.noProbeTitle}>Mode sans sonde</Text>
+            <Text style={styles.noProbeText}>
+              {
+                "Vous pouvez suivre des séances guidées au minuteur. L'app enregistre uniquement les sessions réalisées, le temps d'entraînement et la régularité."
+              }
+            </Text>
+          </View>
+        </View>
+      ) : null}
 
-      {/* Daily Tips */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Conseils du jour</Text>
-        {tips.map((tip) => (
+      <Section title="Appareil">
+        <View style={styles.deviceCard}>
+          <View style={styles.deviceIcon}>
+            <Cpu size={20} color={colors.surface} />
+          </View>
+          <View style={styles.flex}>
+            <Text style={styles.deviceName}>{data.device.device_name || "Aucune sonde connectée"}</Text>
+            <Text style={styles.deviceStatus}>
+              {data.device.connected ? `Connecté · ${data.device.battery_pct}%` : "Déconnecté"}
+            </Text>
+          </View>
+          <View style={styles.deviceMetrics}>
+            <Battery size={16} color={colors.plum} />
+            <Signal size={16} color={colors.plum} />
+          </View>
+        </View>
+        {!data.device.connected ? (
+          <Pressable style={styles.connectLaterButton} onPress={() => router.push("/connect")}>
+            <Text style={styles.connectLaterText}>
+              {hasProbe ? "Connecter une sonde" : "Ajouter une sonde plus tard"}
+            </Text>
+          </Pressable>
+        ) : null}
+      </Section>
+
+      <Section title="Conseils">
+        {data.tips.map((tip) => (
           <View key={tip.id} style={styles.tipCard}>
-            <Text style={styles.tipIcon}>{tip.icon}</Text>
+            <Activity size={18} color={colors.plum} />
             <Text style={styles.tipText}>{tip.text}</Text>
           </View>
         ))}
-      </View>
-
-      {/* Device Status */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Appareil</Text>
-        <View style={styles.deviceCard}>
-          <View style={styles.deviceIcon}>
-            <Text style={styles.deviceIconText}>🦊</Text>
-          </View>
-          <View style={styles.deviceInfo}>
-            <Text style={styles.deviceName}>{device.deviceName}</Text>
-            <Text style={styles.deviceStatus}>
-              {device.connected ? "Connecté" : "Non connecté"} • Batterie {device.batteryPct}%
-            </Text>
-          </View>
-          <View style={styles.deviceStatusDot} />
-        </View>
-      </View>
-
-      {/* Bottom spacing */}
-      <View style={{ height: 100 }} />
+      </Section>
     </ScrollView>
   );
 }
 
+function Section({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <View style={styles.section}>
+      <Text style={styles.sectionTitle}>{title}</Text>
+      {children}
+    </View>
+  );
+}
+
+function Stat({ value, label, sub }: { value: string | number; label: string; sub: string }) {
+  return (
+    <View style={styles.statCard}>
+      <Text style={styles.statNumber} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.7}>
+        {value}
+      </Text>
+      <Text style={styles.statLabel}>{label}</Text>
+      <Text style={styles.statSublabel}>{sub}</Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#F5ECEC",
-  },
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
+  container: { flex: 1, backgroundColor: colors.background },
+  content: { padding: spacing.xl, paddingTop: 44, paddingBottom: 120, gap: spacing.xl },
+  logoWrap: {
     alignItems: "center",
-    paddingHorizontal: 24,
-    paddingTop: 60,
-    paddingBottom: 20,
+    marginBottom: -8,
   },
-  greeting: {
-    fontSize: 28,
-    fontWeight: "800",
-    color: "#5A1A30",
-  },
-  subtitle: {
-    fontSize: 14,
-    color: "#8A5A65",
-    marginTop: 4,
-  },
+  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  greeting: { fontSize: 28, fontWeight: "900", color: colors.plum },
+  subtitle: { fontSize: 14, color: colors.textMuted, marginTop: 4 },
   streakBadge: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#FFF5F5",
+    gap: 6,
+    backgroundColor: colors.surface,
     paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
+    paddingVertical: 9,
+    borderRadius: 999,
+  },
+  streakText: { fontWeight: "800", color: colors.plum },
+  statsContainer: { flexDirection: "row", gap: spacing.sm },
+  emptyCard: {
+    gap: spacing.lg,
+    backgroundColor: colors.surface,
+    borderRadius: radius.xl,
     borderWidth: 1,
-    borderColor: "#E8D0D5",
+    borderColor: colors.border,
+    padding: spacing.md,
   },
-  streakIcon: {
-    fontSize: 16,
-    marginRight: 6,
-  },
-  streakText: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#6A1E3A",
-  },
-  statsContainer: {
+  noProbeCard: {
     flexDirection: "row",
-    justifyContent: "space-between",
-    paddingHorizontal: 24,
-    marginBottom: 24,
+    gap: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.lg,
   },
+  noProbeIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.coral,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  noProbeTitle: { color: colors.plum, fontSize: 17, fontWeight: "900" },
+  noProbeText: { color: colors.textMuted, marginTop: 5, lineHeight: 20 },
   statCard: {
     flex: 1,
-    backgroundColor: "#FFF5F5",
-    borderRadius: 20,
-    padding: 16,
-    marginHorizontal: 4,
+    minWidth: 0,
     alignItems: "center",
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.lg,
     borderWidth: 1,
-    borderColor: "#EAD7DA",
+    borderColor: colors.border,
   },
   statNumber: {
-    fontSize: 24,
-    fontWeight: "800",
-    color: "#6A1E3A",
+    color: colors.plum,
+    fontSize: 22,
+    fontWeight: "900",
+    lineHeight: 25,
+    minHeight: 52,
+    textAlign: "center",
+    width: "100%",
   },
-  statLabel: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#5A1A30",
-    marginTop: 4,
-  },
-  statSublabel: {
-    fontSize: 10,
-    color: "#8A5A65",
-  },
-  section: {
-    paddingHorizontal: 24,
-    marginBottom: 24,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#5A1A30",
-    marginBottom: 12,
-  },
-  quickStartCard: {
-    borderRadius: 24,
-    padding: 20,
-  },
+  statLabel: { fontSize: 13, fontWeight: "800", color: colors.text, marginTop: 4 },
+  statSublabel: { fontSize: 11, color: colors.textMuted, marginTop: 2 },
+  quickStartCard: { borderRadius: radius.xl, overflow: "hidden" },
   quickStartContent: {
+    padding: spacing.xl,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    gap: spacing.md,
   },
-  quickStartTitle: {
-    fontSize: 18,
-    fontWeight: "800",
-    color: "#FFF5F5",
+  quickStartTextBlock: {
+    flex: 1,
+    minWidth: 0,
   },
-  quickStartSubtitle: {
-    fontSize: 12,
-    color: "#F5D5DD",
-    marginTop: 4,
-  },
+  quickStartTitle: { fontSize: 20, fontWeight: "900", color: colors.surface, lineHeight: 24 },
+  quickStartSubtitle: { fontSize: 14, color: "rgba(255,255,255,0.82)", marginTop: 4 },
   playButton: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: "rgba(255,255,255,0.2)",
-    justifyContent: "center",
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: colors.surface,
     alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
   },
-  playIcon: {
-    color: "white",
-    fontSize: 20,
-    marginLeft: 4,
-  },
+  section: { gap: spacing.md },
+  sectionTitle: { fontSize: 18, fontWeight: "900", color: colors.plum },
   sessionCard: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#FFF5F5",
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 10,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+    gap: spacing.md,
     borderWidth: 1,
-    borderColor: "#EAD7DA",
+    borderColor: colors.border,
   },
-  sessionColor: {
-    width: 4,
-    height: 40,
-    borderRadius: 2,
-    marginRight: 12,
+  sessionColor: { width: 5, height: 44, borderRadius: 99 },
+  sessionTitle: { fontSize: 16, fontWeight: "800", color: colors.text },
+  sessionMeta: { fontSize: 13, color: colors.textMuted, marginTop: 3 },
+  deviceCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.surface,
+    padding: spacing.lg,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
-  sessionInfo: {
-    flex: 1,
+  deviceIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: colors.plum,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: spacing.md,
   },
-  sessionTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#5A1A30",
+  deviceName: { fontSize: 16, fontWeight: "900", color: colors.text },
+  deviceStatus: { fontSize: 13, color: colors.textMuted, marginTop: 3 },
+  deviceMetrics: { flexDirection: "row", gap: 10 },
+  connectLaterButton: {
+    backgroundColor: colors.surface,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingVertical: 12,
+    alignItems: "center",
   },
-  sessionMeta: {
-    fontSize: 12,
-    color: "#8A5A65",
-    marginTop: 2,
-  },
-  sessionArrow: {
-    fontSize: 20,
-    color: "#B9657C",
+  connectLaterText: {
+    color: colors.plum,
+    fontWeight: "900",
   },
   tipCard: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#FFF5F5",
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 10,
+    gap: spacing.md,
+    backgroundColor: colors.surface,
+    padding: spacing.lg,
+    borderRadius: radius.lg,
   },
-  tipIcon: {
-    fontSize: 24,
-    marginRight: 12,
-  },
-  tipText: {
-    flex: 1,
-    fontSize: 14,
-    color: "#5A1A30",
-  },
-  deviceCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#FFF5F5",
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: "#EAD7DA",
-  },
-  deviceIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "#6A1E3A",
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 12,
-  },
-  deviceIconText: {
-    fontSize: 20,
-  },
-  deviceInfo: {
-    flex: 1,
-  },
-  deviceName: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#5A1A30",
-  },
-  deviceStatus: {
-    fontSize: 12,
-    color: "#6A1E3A",
-    marginTop: 2,
-  },
-  deviceStatusDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: "#4CAF50",
-  },
+  tipText: { flex: 1, color: colors.text, fontWeight: "600" },
+  flex: { flex: 1 },
 });
-

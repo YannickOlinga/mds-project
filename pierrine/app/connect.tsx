@@ -1,180 +1,171 @@
-import { View, Text, StyleSheet, Pressable } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import { Bluetooth, BluetoothConnected, RefreshCcw } from "lucide-react-native";
+import { useEffect } from "react";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { router } from "expo-router";
-import { useCallback } from "react";
 
-import { connectDevice } from "@/lib/api";
-import { getAccessToken } from "@/lib/auth";
+import ErrorState from "@/components/ui/ErrorState";
+import { useToast } from "@/components/ui/Toast";
+import { colors, gradients } from "@/constants/theme/colors";
+import { radius, spacing } from "@/constants/theme/spacing";
+import { useConnectDeviceMutation } from "@/hooks/useApiQueries";
+import useAuthStore from "@/store/authStore";
+import { useDeviceStore } from "@/store/deviceStore";
+import { getErrorMessage } from "@/utils/apiError";
 
 export default function ConnectScreen() {
-  const handleConnect = useCallback(async () => {
-    try {
-      const token = await getAccessToken();
-      if (!token) {
-        router.replace("/login");
-        return;
-      }
+  const { state, devices, connectedDevice, error, scan, connect, reset } = useDeviceStore();
+  const connectDeviceMutation = useConnectDeviceMutation();
+  const showToast = useToast((toast) => toast.show);
+  const isAuthenticated = useAuthStore((auth) => auth.isAuthenticated);
 
-      await connectDevice(1);
-    } catch {
-      // fallback: on navigue quand même.
-    } finally {
-      router.replace("/connected");
-    }
-  }, []);
+  useEffect(() => () => reset(), [reset]);
+
+  async function handleConnect(deviceId: string) {
+    await connect(deviceId);
+    const latest = useDeviceStore.getState().connectedDevice;
+    if (!latest) return;
+
+    connectDeviceMutation.mutate(
+      {
+        device_name: latest.name,
+        connected: true,
+      },
+      {
+        onSuccess: () => {
+          showToast("Sonde connectée");
+          router.replace("/connected");
+        },
+        onError: (apiError) => showToast(getErrorMessage(apiError)),
+      }
+    );
+  }
+
+  function skipDeviceConnection() {
+    router.replace(isAuthenticated ? "/(tabs)" : "/login");
+  }
 
   return (
-    <View style={styles.container}>
-
-      {/* Retour */}
+    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Pressable onPress={() => router.back()}>
-        <Text style={styles.back}>← Retour</Text>
+        <Text style={styles.back}>Retour</Text>
       </Pressable>
 
-      {/* Titre */}
-      <Text style={styles.title}>Connectez votre sonde</Text>
-      <Text style={styles.subtitle}>
-        Activez le Bluetooth et placez votre sonde à proximité
-      </Text>
-
-      {/* Bloc Bluetooth */}
-      <View style={styles.bluetoothContainer}>
-        <View style={styles.shadowCircle} />
-
-        <Pressable style={styles.bluetoothBox}>
-          <Text style={styles.bluetoothIcon}>ᛒ</Text>
-        </Pressable>
+      <View style={styles.hero}>
+        <LinearGradient colors={gradients.primary} style={styles.iconBubble}>
+          {state === "connected" ? (
+            <BluetoothConnected size={62} color={colors.surface} />
+          ) : (
+            <Bluetooth size={62} color={colors.surface} />
+          )}
+        </LinearGradient>
+        <Text style={styles.title}>Connecter la sonde</Text>
+        <Text style={styles.subtitle}>
+          Cette étape est nécessaire uniquement pour recueillir des mesures réelles. Vous pouvez continuer sans sonde et la connecter plus tard.
+        </Text>
       </View>
 
-      <Text style={styles.deviceTitle}>Sonde Périnea</Text>
-      <Text style={styles.deviceSubtitle}>
-        Appuyez pour démarrer la connexion
-      </Text>
+      {error ? <ErrorState error={new Error(error)} onRetry={() => void scan()} /> : null}
 
-      {/* Première utilisation */}
-      <View style={styles.helpCard}>
-        <View style={styles.helpIcon}>
-          <Text style={styles.question}>?</Text>
-        </View>
-
-        <View>
-          <Text style={styles.helpTitle}>Première utilisation ?</Text>
-          <Text style={styles.helpSubtitle}>
-            Consultez notre guide de démarrage
-          </Text>
-        </View>
-      </View>
-
-      {/* Bouton Connexion */}
-      <LinearGradient
-        colors={["#B9657C", "#6A1E3A"]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 0 }}
-        style={styles.button}
-      >
-        <Pressable onPress={handleConnect}>
-          <Text style={styles.buttonText}>Connexion automatique</Text>
+      <LinearGradient colors={gradients.primary} style={styles.scanButton}>
+        <Pressable style={styles.scanPressable} onPress={() => void scan()} disabled={state === "scanning"}>
+          <RefreshCcw size={19} color={colors.surface} />
+          <Text style={styles.scanText}>{state === "scanning" ? "Recherche..." : "Scanner"}</Text>
         </Pressable>
       </LinearGradient>
 
-    </View>
+      <Pressable style={styles.skipButton} onPress={skipDeviceConnection}>
+        <Text style={styles.skipText}>Passer pour l’instant</Text>
+      </Pressable>
+
+      <View style={styles.list}>
+        <Text style={styles.sectionTitle}>Périphériques détectés</Text>
+        {devices.length === 0 ? (
+          <Text style={styles.emptyText}>
+            Aucun périphérique détecté. Vérifiez que la sonde est allumée et proche du téléphone.
+          </Text>
+        ) : (
+          devices.map((device) => (
+            <Pressable
+              key={device.id}
+              style={styles.deviceCard}
+              onPress={() => void handleConnect(device.id)}
+              disabled={state === "connecting" || connectDeviceMutation.isPending}
+            >
+              <View>
+                <Text style={styles.deviceName}>{device.name}</Text>
+                <Text style={styles.deviceMeta}>Signal {device.rssi ?? "indisponible"}</Text>
+              </View>
+              <Text style={styles.connectText}>Connecter</Text>
+            </Pressable>
+          ))
+        )}
+      </View>
+
+      {connectedDevice ? (
+        <Text style={styles.connectedText}>Connecté à {connectedDevice.name}</Text>
+      ) : null}
+    </ScrollView>
   );
 }
+
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#F5ECEC",
-    padding: 24,
-  },
-  back: {
-    color: "#9B6A75",
-    marginTop: 50,
-    marginBottom: 20,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: "800",
-    color: "#5A1A30",
-    marginBottom: 10,
-  },
-  subtitle: {
-    color: "#8A5A65",
-    marginBottom: 40,
-  },
-  bluetoothContainer: {
+  container: { flex: 1, backgroundColor: colors.background },
+  content: { padding: spacing.xl, paddingTop: 56, paddingBottom: 80, gap: spacing.xl },
+  back: { color: colors.plum, fontWeight: "800" },
+  hero: { alignItems: "center", gap: spacing.md },
+  iconBubble: {
+    width: 132,
+    height: 132,
+    borderRadius: 66,
     alignItems: "center",
-    marginBottom: 20,
-  },
-  shadowCircle: {
-    position: "absolute",
-    width: 160,
-    height: 160,
-    borderRadius: 80,
-    backgroundColor: "#EAD7DA",
-    top: 20,
-  },
-  bluetoothBox: {
-    width: 130,
-    height: 130,
-    borderRadius: 30,
-    backgroundColor: "#6A1E3A",
     justifyContent: "center",
-    alignItems: "center",
-    elevation: 8,
   },
-  bluetoothIcon: {
-    fontSize: 60,
-    color: "white",
-  },
-  deviceTitle: {
-    textAlign: "center",
-    fontSize: 22,
-    fontWeight: "800",
-    color: "#5A1A30",
-    marginTop: 20,
-  },
-  deviceSubtitle: {
-    textAlign: "center",
-    color: "#8A5A65",
-    marginBottom: 40,
-  },
-  helpCard: {
+  title: { color: colors.plum, fontSize: 28, fontWeight: "900", textAlign: "center" },
+  subtitle: { color: colors.textMuted, textAlign: "center", lineHeight: 22 },
+  scanButton: { borderRadius: 999, overflow: "hidden" },
+  scanPressable: {
+    paddingVertical: 15,
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#EDE7E8",
-    padding: 20,
-    borderRadius: 25,
-    marginBottom: 30,
-  },
-  helpIcon: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: "#D9AEB6",
     justifyContent: "center",
+    gap: spacing.sm,
+  },
+  scanText: { color: colors.surface, fontSize: 16, fontWeight: "900" },
+  skipButton: {
     alignItems: "center",
-    marginRight: 15,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    paddingVertical: 14,
   },
-  question: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: "#6A1E3A",
+  skipText: {
+    color: colors.plum,
+    fontSize: 15,
+    fontWeight: "900",
   },
-  helpTitle: {
-    fontWeight: "700",
-    color: "#5A1A30",
+  list: { gap: spacing.md },
+  sectionTitle: { color: colors.plum, fontSize: 18, fontWeight: "900" },
+  emptyText: {
+    color: colors.textMuted,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+    lineHeight: 20,
   },
-  helpSubtitle: {
-    color: "#8A5A65",
-  },
-  button: {
-    borderRadius: 40,
-    paddingVertical: 18,
+  deviceCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+    flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
+    borderWidth: 1,
+    borderColor: colors.border,
   },
-  buttonText: {
-    color: "white",
-    fontWeight: "800",
-    fontSize: 18,
-  },
+  deviceName: { color: colors.text, fontWeight: "900", fontSize: 16 },
+  deviceMeta: { color: colors.textMuted, marginTop: 3 },
+  connectText: { color: colors.coral, fontWeight: "900" },
+  connectedText: { color: colors.success, textAlign: "center", fontWeight: "900" },
 });

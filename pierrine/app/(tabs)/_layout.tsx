@@ -1,30 +1,24 @@
-import { Tabs } from "expo-router";
-import React, { useEffect, useState } from "react";
-import { Platform, StyleSheet, View, Text } from "react-native";
-import { useRouter } from "expo-router";
-
-import { getAccessToken } from "@/lib/auth";
+import React from "react";
+import { Platform, StyleSheet, View, Text, ActivityIndicator } from "react-native";
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { Redirect, Tabs } from "expo-router";
+import useAuthStore from "@/store/authStore";
 
 export default function TabLayout() {
-  const router = useRouter();
-  const [isReady, setIsReady] = useState(false);
-
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      const token = await getAccessToken();
-      if (!mounted) return;
-      setIsReady(true);
-      if (!token) {
-        router.replace("/login");
-      }
-    })();
-    return () => {
-      mounted = false;
-    };
-  }, [router]);
-
-  if (!isReady) return null;
+  const auth = useAuthStore();
+  
+if (auth.loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#6A1E3A" />
+        <Text style={styles.loadingText}>Chargement...</Text>
+      </View>
+    );
+  }
+  
+  if (!auth.isAuthenticated) {
+    return <Redirect href="/login" />;
+  }
 
   return (
     <Tabs
@@ -74,33 +68,48 @@ export default function TabLayout() {
           tabBarIcon: ({ color }) => <TabIcon name="user" color={color} />,
         }}
       />
+      <Tabs.Screen
+        name="challenges"
+        options={{
+          title: "Challenges",
+          tabBarIcon: ({ color }) => <TabIcon name="trophy" color={color} />,
+        }}
+      />
     </Tabs>
   );
 }
 
 function TabIcon({ name, color }: { name: string; color: string }) {
   const icons: { [key: string]: string } = {
-    home: "🏠",
-    dumbbell: "💪",
-    chart: "📊",
-    user: "👤",
+    home: "home-outline",
+    dumbbell: "barbell-outline",
+    chart: "trending-up-outline",
+    user: "person-outline",
+    trophy: "trophy-outline",
   };
 
   return (
-    <View style={styles.iconContainer}>
-      <Text style={[styles.icon, { color }]}>{icons[name]}</Text>
-    </View>
+    <Ionicons name={icons[name] as any} size={24} color={color} />
   );
 }
 
 const styles = StyleSheet.create({
-  iconContainer: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingTop: 4,
-  },
-  icon: {
-    fontSize: 22,
-  },
-});
-
+    loadingContainer: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      backgroundColor: '#F5ECEC',
+      gap: 16,
+      padding: 32,
+    },
+    loadingText: {
+      fontSize: 18,
+      color: '#6A1E3A',
+      fontWeight: '600',
+    },
+    redirectText: {
+      fontSize: 16,
+      color: '#6A1E3A',
+      fontWeight: '600',
+    },
+  });

@@ -72,7 +72,7 @@ export default function OnboardingFlow() {
             Quels symptômes ressentez-vous ?
           </Text>
           <Text style={styles.subtitle}>
-            Sélectionnez tout ce qui s'applique
+            {"Sélectionnez tout ce qui s'applique"}
           </Text>
 
           <Option text="Fuites lors d'efforts" />
