@@ -27,6 +27,12 @@ class Profile(models.Model):
     age = models.PositiveIntegerField()
     objective = models.CharField(max_length=255)
     level_key = models.CharField(max_length=32, choices=LEVEL_CHOICES, default=LEVEL_DEBUTANT)
+    training_frequency = models.CharField(max_length=80, blank=True, default="")
+    symptoms = models.JSONField(default=list, blank=True)
+    birth_context = models.CharField(max_length=120, blank=True, default="")
+    has_probe = models.BooleanField(null=True, blank=True)
+    health_notes = models.TextField(blank=True, default="")
+    onboarding_completed = models.BooleanField(default=False)
 
     reminders = models.BooleanField(default=True)
     notifications = models.BooleanField(default=True)
@@ -65,8 +71,8 @@ class ExerciseTemplate(models.Model):
     # Durée "réelle" (pour statistiques/affichage)
     duration_minutes = models.PositiveIntegerField()
 
-    # Durée utilisée pour l'animation/timer de la démo UI (en secondes)
-    demo_duration_seconds = models.PositiveIntegerField(default=10)
+    # Duree utilisee par le minuteur de session cote application.
+    timer_duration_seconds = models.PositiveIntegerField(default=10)
 
     sort_order = models.PositiveSmallIntegerField(default=0)
 
@@ -151,4 +157,3 @@ class UserAchievement(models.Model):
 
     def __str__(self) -> str:  # pragma: no cover
         return f"UserAchievement(profile_id={self.profile_id}, code={self.achievement.code}, earned={self.earned})"
-

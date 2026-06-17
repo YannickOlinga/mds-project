@@ -1,4 +1,4 @@
-# Welcome to your Expo app 👋
+# Périnea
 
 This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
 
@@ -10,11 +10,42 @@ This is an [Expo](https://expo.dev) project created with [`create-expo-app`](htt
    npm install
    ```
 
-2. Start the app
+2. Start the backend (accessible depuis le téléphone / simulateur)
 
    ```bash
-   npx expo start
+   cd ../backend
+   source venv/bin/activate
+   python manage.py runserver 0.0.0.0:8000
    ```
+
+3. Start the app
+
+   ```bash
+   npm start
+   ```
+
+   Au démarrage, l’IP locale de ton Mac est détectée automatiquement et injectée
+   dans `EXPO_PUBLIC_API_BASE_URL` (ex. `http://192.168.1.12:8000`).
+
+   Afficher l’URL sans lancer Expo :
+
+   ```bash
+   npm run env:api
+   ```
+
+   Surcharger manuellement (copier `.env.example` vers `.env` ou en ligne de commande) :
+
+   ```bash
+   EXPO_PUBLIC_API_BASE_URL=http://192.168.1.12:8000 npm start
+   ```
+
+   Variables disponibles :
+
+   | Variable | Rôle |
+   | --- | --- |
+   | `EXPO_PUBLIC_API_BASE_URL` | URL complète (prioritaire) |
+   | `EXPO_PUBLIC_API_HOST` | IP ou hostname seul |
+   | `EXPO_PUBLIC_API_PORT` | Port Django (défaut `8000`) |
 
 In the output, you'll find options to open the app in a
 

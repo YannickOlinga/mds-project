@@ -1,121 +1,61 @@
-// app/connected.tsx
-
-import React from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  Pressable,
-  Platform,
-} from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { Battery, CheckCircle2, Signal } from "lucide-react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import { router } from "expo-router";
 
-import { getDeviceStatus } from "@/lib/api";
-import { getAccessToken } from "@/lib/auth";
+import ErrorState from "@/components/ui/ErrorState";
+import LoadingScreen from "@/components/ui/LoadingScreen";
+import { colors, gradients } from "@/constants/theme/colors";
+import { radius, spacing } from "@/constants/theme/spacing";
+import { useDeviceQuery } from "@/hooks/useApiQueries";
 
 export default function ConnectedScreen() {
-  const router = useRouter();
+  const device = useDeviceQuery();
 
-  const [deviceName, setDeviceName] = useState("Périnea #A4F2B");
-  const [batteryPct, setBatteryPct] = useState(85);
-  const [signalLevel, setSignalLevel] = useState("Excellent");
+  if (device.isLoading) {
+    return <LoadingScreen label="Lecture de l’état appareil" />;
+  }
 
-  useEffect(() => {
-    (async () => {
-      const token = await getAccessToken();
-      if (!token) {
-        router.replace("/login");
-        return;
-      }
+  if (device.isError) {
+    return <ErrorState error={device.error} onRetry={() => void device.refetch()} />;
+  }
 
-      getDeviceStatus(1)
-        .then((data) => {
-          setDeviceName(data.device_name);
-          setBatteryPct(data.battery_pct);
-          setSignalLevel(data.signal_level);
-        })
-        .catch(() => {
-          // fallback mock
-        });
-    })();
-  }, []);
+  if (!device.data) {
+    return <ErrorState error={new Error("État appareil indisponible.")} onRetry={() => void device.refetch()} />;
+  }
 
   return (
     <View style={styles.container}>
-
-      {/* Retour */}
       <Pressable onPress={() => router.back()}>
-        <Text style={styles.back}>← Retour</Text>
+        <Text style={styles.back}>Retour</Text>
       </Pressable>
 
-      {/* Titre */}
-      <Text style={styles.title}>Connectez votre sonde</Text>
-      <Text style={styles.subtitle}>
-        Activez le Bluetooth et placez votre sonde à proximité
-      </Text>
+      <View style={styles.content}>
+        <LinearGradient colors={gradients.primary} style={styles.iconBox}>
+          <CheckCircle2 size={72} color={colors.surface} />
+        </LinearGradient>
 
-      {/* Icône / Bloc central */}
-      <View style={styles.iconArea}>
-        {/* Ombre / halo */}
-        <View style={styles.shadowCircle} />
+        <Text style={styles.title}>{device.data.connected ? "Sonde connectée" : "Sonde déconnectée"}</Text>
+        <Text style={styles.subtitle}>{device.data.device_name}</Text>
 
-        {/* Bloc principal */}
-        <View style={styles.iconBox}>
-          {/* ✅ ou icône Bluetooth selon l’état */}
-          <Text style={styles.checkIcon}>✔︎</Text>
+        <View style={styles.statusCard}>
+          <View style={styles.statusBlock}>
+            <Battery size={22} color={colors.plum} />
+            <Text style={styles.statusText}>{device.data.battery_pct}%</Text>
+          </View>
+          <View style={styles.separator} />
+          <View style={styles.statusBlock}>
+            <Signal size={22} color={colors.plum} />
+            <Text style={styles.statusText}>{device.data.signal_level ?? "Signal inconnu"}</Text>
+          </View>
         </View>
       </View>
 
-      {/* Texte affichant l’état connecté */}
-      <Text style={styles.deviceTitle}>Sonde connectée !</Text>
-      <Text style={styles.deviceSubtitle}>{deviceName}</Text>
-
-      {/* Carte batterie + signal */}
-      <View style={styles.statusCard}>
-        {/* Batterie */}
-        <View style={styles.statusBlock}>
-          <Text style={styles.statusIcon}>🔋</Text>
-          <Text style={styles.statusText}>{batteryPct}%</Text>
-        </View>
-
-        {/* Séparateur */}
-        <View style={styles.statusSeparator} />
-
-        {/* Signal */}
-        <View style={styles.statusBlock}>
-          <Text style={styles.statusIcon}>📶</Text>
-          <Text style={styles.statusText}>{signalLevel}</Text>
-        </View>
-      </View>
-
-      {/* Aide / Première utilisation */}
-      <View style={styles.helpCard}>
-        <View style={styles.helpIcon}>
-          <Text style={styles.question}>?</Text>
-        </View>
-
-        <View>
-          <Text style={styles.helpTitle}>Première utilisation ?</Text>
-          <Text style={styles.helpSubtitle}>
-            Consultez notre guide de démarrage
-          </Text>
-        </View>
-      </View>
-
-      {/* Bouton Continuer */}
-      <LinearGradient
-        colors={["#B9657C", "#6A1E3A"]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 0 }}
-        style={styles.button}
-      >
+      <LinearGradient colors={gradients.primary} style={styles.button}>
         <Pressable onPress={() => router.replace("/(tabs)")}>
           <Text style={styles.buttonText}>Continuer</Text>
         </Pressable>
       </LinearGradient>
-
     </View>
   );
 }
@@ -123,138 +63,41 @@ export default function ConnectedScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F5ECEC",
-    padding: 24,
+    backgroundColor: colors.background,
+    padding: spacing.xl,
+    paddingTop: 56,
   },
-  back: {
-    color: "#9B6A75",
-    marginTop: Platform.select({ ios: 50, android: 30 }),
-    marginBottom: 20,
-    fontSize: 16,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: "800",
-    color: "#5A1A30",
-    marginBottom: 8,
-  },
-  subtitle: {
-    color: "#8A5A65",
-    marginBottom: 40,
-  },
-
-  /* zone icône centrale */
-  iconArea: {
-    alignItems: "center",
-    marginBottom: 25,
-  },
-  shadowCircle: {
-    position: "absolute",
-    width: 160,
-    height: 160,
-    borderRadius: 80,
-    backgroundColor: "#EAD7DA",
-    top: 20,
-  },
+  back: { color: colors.plum, fontWeight: "800" },
+  content: { flex: 1, alignItems: "center", justifyContent: "center", gap: spacing.lg },
   iconBox: {
-    width: 130,
-    height: 130,
-    borderRadius: 30,
-    backgroundColor: "#6A1E3A",
-    justifyContent: "center",
+    width: 132,
+    height: 132,
+    borderRadius: 38,
     alignItems: "center",
-    elevation: 8,
+    justifyContent: "center",
   },
-  checkIcon: {
-    fontSize: 60,
-    color: "white",
-  },
-
-  deviceTitle: {
-    textAlign: "center",
-    fontSize: 22,
-    fontWeight: "800",
-    color: "#5A1A30",
-    marginTop: 20,
-  },
-  deviceSubtitle: {
-    textAlign: "center",
-    color: "#8A5A65",
-    marginBottom: 30,
-  },
-
-  /* carte batterie + signal */
+  title: { color: colors.plum, fontSize: 28, fontWeight: "900", textAlign: "center" },
+  subtitle: { color: colors.textMuted, fontSize: 16, fontWeight: "700" },
   statusCard: {
     flexDirection: "row",
-    justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#EDE7E8",
-    borderRadius: 25,
-    paddingVertical: 14,
-    paddingHorizontal: 24,
-    gap: 20,
-    marginBottom: 30,
+    backgroundColor: colors.surface,
+    borderRadius: radius.xl,
+    paddingVertical: spacing.lg,
+    paddingHorizontal: spacing.xl,
+    gap: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
-  statusBlock: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  statusIcon: {
-    fontSize: 20,
-    color: "#5A1A30",
-  },
-  statusText: {
-    fontSize: 16,
-    color: "#5A1A30",
-    fontWeight: "700",
-  },
-  statusSeparator: {
-    width: 1,
-    height: 30,
-    backgroundColor: "#D8B4BE",
-  },
-
-  /* carte aide */
-  helpCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#EDE7E8",
-    padding: 20,
-    borderRadius: 25,
-    marginBottom: 30,
-  },
-  helpIcon: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: "#D9AEB6",
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 15,
-  },
-  question: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: "#6A1E3A",
-  },
-  helpTitle: {
-    fontWeight: "700",
-    color: "#5A1A30",
-    marginBottom: 2,
-  },
-  helpSubtitle: {
-    color: "#8A5A65",
-  },
-
-  button: {
-    borderRadius: 40,
-    paddingVertical: 18,
-    alignItems: "center",
-  },
+  statusBlock: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  statusText: { color: colors.plum, fontWeight: "900" },
+  separator: { width: 1, height: 28, backgroundColor: colors.border },
+  button: { borderRadius: 999, overflow: "hidden" },
   buttonText: {
-    color: "white",
-    fontWeight: "800",
-    fontSize: 18,
+    color: colors.surface,
+    fontSize: 17,
+    fontWeight: "900",
+    textAlign: "center",
+    paddingVertical: 16,
   },
 });

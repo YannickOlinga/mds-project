@@ -1,0 +1,92 @@
+# Dépendances Arduino pour le firmware Périnea ESP32
+
+## Bibliothèque optionnelle (recommandée)
+
+### ArduinoJson
+- Auteur: Benoit Blanchon
+- Version: 7.0.0 ou plus récent
+- URL: https://github.com/bblanchon/ArduinoJson
+- Utilisé pour: Sérialisation JSON des messages HTTP
+
+**Installation Arduino IDE:**
+```
+Sketch → Include Library → Manage Libraries
+→ Rechercher "ArduinoJson"
+→ Installer version 7.0.x+
+```
+
+**Installation Arduino CLI:**
+```bash
+arduino-cli lib install "ArduinoJson"
+```
+
+## Bibliothèques pré-installées (ESP32) ✓
+
+**Aucune autre installation nécessaire!** Les bibliothèques suivantes sont incluses avec le package ESP32:
+
+- `BLEDevice.h` — Bluetooth Low Energy
+- `BLEServer.h` — Serveur BLE
+- `BLEUtils.h` — Utilitaires BLE
+- `BLE2902.h` — Descripteur CCCD pour notifications
+- `WiFi.h` — Connectivité WiFi
+- `WebServer.h` — Serveur HTTP simple
+
+## Setup Arduino IDE
+
+1. **Installer le package ESP32:**
+   - File → Preferences
+   - Additional Board Manager URLs:
+     ```
+     https://espressif.github.io/arduino-esp32/package_esp32_index.json
+     ```
+   - Tools → Board Manager
+   - Rechercher "esp32" et installer "esp32 by Espressif Systems"
+
+2. **Sélectionner la carte:**
+   - Tools → Board → ESP32 Dev Module (ou votre modèle)
+   - Tools → Port → /dev/ttyUSB0 (ou COM port)
+   - Tools → Flash Size → 4MB
+   - Tools → Partition Scheme → Default (1.2MB APP/1.5MB SPIFFS)
+
+## Vérification de l'installation
+
+Tester le script de compilation:
+
+```bash
+# Arduino CLI
+arduino-cli compile --fqbn esp32:esp32:esp32 perinea.ino
+
+# Arduino IDE
+Sketch → Verify
+```
+
+## Résolution de problèmes
+
+### Erreur: "BLE libraries not found"
+→ Package ESP32 non installé ou chemin incorrect
+→ Réinstaller via Board Manager
+
+### Erreur: "ArduinoJson.h not found"
+→ Bibliothèque ArduinoJson non installée
+→ Installer via Library Manager
+
+### Erreur: "WebSocketsServer.h not found"
+→ Bibliothèque WebSocket Server non installée
+→ Installer "WebsocketServer by Links2004"
+
+### Port /dev/ttyUSB0 non détecté
+```bash
+# Linux/Mac — liste les ports
+ls /dev/tty.*
+
+# Windows — Port COM détecté ?
+# Device Manager → COM & LPT Ports
+```
+
+## Version cible
+
+- **Arduino IDE:** 2.0.0+
+- **Arduino CLI:** 0.30.0+
+- **ESP32 Package:** 2.0.0+ (support WiFi stable)
+- **ArduinoJson:** 7.0.0+
+- **WebSocket Server:** 1.4.0+

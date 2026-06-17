@@ -1,465 +1,279 @@
-import { View, Text, StyleSheet, ScrollView, Pressable } from "react-native";
-import { router } from "expo-router";
-import { useEffect, useState } from "react";
+import { LineChart } from "react-native-chart-kit";
+import { Award, BadgeCheck, CalendarCheck, CalendarDays, Clock, Flame, ShieldCheck, Target, Timer } from "lucide-react-native";
+import type { ReactNode } from "react";
+import { Dimensions, ScrollView, StyleSheet, Text, View } from "react-native";
+import Svg, { Circle, Line, Polygon } from "react-native-svg";
 
-import { getProgress } from "@/lib/api";
+import EmptyState from "@/components/ui/EmptyState";
+import ErrorState from "@/components/ui/ErrorState";
+import LoadingScreen from "@/components/ui/LoadingScreen";
+import { colors } from "@/constants/theme/colors";
+import { radius, spacing } from "@/constants/theme/spacing";
+import { useProgressQuery } from "@/hooks/useApiQueries";
 
-interface StatData {
-  day: string;
-  value: number;
-}
-
-interface Achievement {
-  id: number;
-  title: string;
-  description: string;
-  icon: string;
-  earned: boolean;
-}
+const screenWidth = Dimensions.get("window").width;
 
 export default function ProgressScreen() {
-  const [weeklyData, setWeeklyData] = useState<StatData[]>([
-    { day: "L", value: 60 },
-    { day: "M", value: 80 },
-    { day: "M", value: 45 },
-    { day: "J", value: 90 },
-    { day: "V", value: 70 },
-    { day: "S", value: 30 },
-    { day: "D", value: 50 },
-  ]);
+  const progress = useProgressQuery();
 
-  const [achievements, setAchievements] = useState<Achievement[]>([
-    { id: 1, title: "Premiers pas", description: "Première session complétée", icon: "🎯", earned: true },
-    { id: 2, title: "Régularité", description: "7 jours consécutifs", icon: "🔥", earned: true },
-    { id: 3, title: "Athlète", description: "10 sessions complétées", icon: "🏆", earned: true },
-    { id: 4, title: "Maître", description: "50 sessions complétées", icon: "👑", earned: false },
-    { id: 5, title: "Éclair", description: "Session rapide terminée", icon: "⚡", earned: true },
-    { id: 6, title: "Persévérance", description: "30 jours d'entraînement", icon: "💎", earned: false },
-  ]);
+  if (progress.isLoading) {
+    return <LoadingScreen label="Chargement de vos progrès" />;
+  }
 
-  const [history, setHistory] = useState<
-    Array<{ id: number; date: string; duration: string; exercises: number; level: string }>
-  >([
-    { id: 1, date: "Aujourd'hui", duration: "15 min", exercises: 4, level: "Débutant" },
-    { id: 2, date: "Hier", duration: "20 min", exercises: 5, level: "Intermédiaire" },
-    { id: 3, date: "Il y a 2 jours", duration: "15 min", exercises: 4, level: "Débutant" },
-    { id: 4, date: "Il y a 3 jours", duration: "10 min", exercises: 3, level: "Débutant" },
-    { id: 5, date: "Il y a 4 jours", duration: "25 min", exercises: 6, level: "Intermédiaire" },
-  ]);
+  if (progress.isError) {
+    return <ErrorState error={progress.error} onRetry={() => void progress.refetch()} />;
+  }
 
-  const [overall, setOverall] = useState({
-    sessions_total: 23,
-    streak_days: 7,
-    time_total_formatted: "6h 45",
-  });
+  const data = progress.data;
+  if (!data) {
+    return <EmptyState title="Aucun progrès" message="Terminez une session pour afficher vos statistiques." />;
+  }
 
-  const [monthlyGoal, setMonthlyGoal] = useState({
-    done: 18,
-    target: 25,
-    remaining: 7,
-    percent: 72,
-  });
-
-  useEffect(() => {
-    getProgress(1)
-      .then((data) => {
-        setWeeklyData(data.weekly.data);
-        setAchievements(data.achievements);
-        setHistory(data.history);
-        setOverall(data.overall);
-        setMonthlyGoal(data.monthly_goal);
-      })
-      .catch(() => {
-        // fallback mock
-      });
-  }, []);
-
-  const maxValue = Math.max(...weeklyData.map((d) => d.value), 1);
+  const weeklyValues = data.weekly.data.map((item) => item.value);
+  const chartValues = weeklyValues.every((value) => value === 0) ? [0, 0, 0, 0, 0, 0, 0] : weeklyValues;
 
   return (
-    <ScrollView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Progrès</Text>
-        <Pressable onPress={() => router.back()}>
-          <Text style={styles.back}>← Retour</Text>
-        </Pressable>
+    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      <View>
+        <Text style={styles.title}>Progrès</Text>
+        <Text style={styles.subtitle}>Statistiques synchronisées avec votre historique</Text>
       </View>
 
-      {/* Overall Stats */}
-      <View style={styles.overallStats}>
-        <View style={styles.overallCard}>
-          <Text style={styles.overallNumber}>{overall.sessions_total}</Text>
-          <Text style={styles.overallLabel}>Sessions</Text>
-          <Text style={styles.overallSublabel}>totales</Text>
-        </View>
-        <View style={styles.overallCard}>
-          <Text style={styles.overallNumber}>{overall.streak_days}</Text>
-          <Text style={styles.overallLabel}>Jours</Text>
-          <Text style={styles.overallSublabel}>consécutifs</Text>
-        </View>
-        <View style={styles.overallCard}>
-          <Text style={styles.overallNumber}>{overall.time_total_formatted}</Text>
-          <Text style={styles.overallLabel}>Temps</Text>
-          <Text style={styles.overallSublabel}>total</Text>
-        </View>
+      <View style={styles.statsGrid}>
+        <Stat icon={<Award size={20} color={colors.plum} />} value={data.overall.sessions_total} label="Sessions" />
+        <Stat icon={<Flame size={20} color={colors.plum} />} value={data.overall.streak_days} label="Streak" />
+        <Stat icon={<Clock size={20} color={colors.plum} />} value={data.overall.time_total_formatted} label="Temps" />
       </View>
 
-      {/* Weekly Chart */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Cette semaine</Text>
-        <View style={styles.chartCard}>
-          <View style={styles.chart}>
-            {weeklyData.map((item, index) => (
-              <View key={index} style={styles.chartColumn}>
-                <View style={styles.chartBarContainer}>
-                  <View
-                    style={[
-                      styles.chartBar,
-                      {
-                        height: (item.value / maxValue) * 100,
-                      },
-                    ]}
-                  />
-                </View>
-                <Text style={styles.chartLabel}>{item.day}</Text>
-              </View>
-            ))}
-          </View>
-          <View style={styles.chartLegend}>
-            <View style={styles.legendItem}>
-              <View style={[styles.legendDot, { backgroundColor: "#B9657C" }]} />
-              <Text style={styles.legendText}>Minutes d'exercice</Text>
-            </View>
-          </View>
-        </View>
+      <View style={styles.card}>
+        <Text style={styles.sectionTitle}>Temps cette semaine</Text>
+        <LineChart
+          data={{
+            labels: data.weekly.data.map((item) => item.day),
+            datasets: [{ data: chartValues }],
+          }}
+          width={screenWidth - 48}
+          height={210}
+          yAxisSuffix="s"
+          chartConfig={{
+            backgroundGradientFrom: colors.surface,
+            backgroundGradientTo: colors.surface,
+            decimalPlaces: 0,
+            color: () => colors.coral,
+            labelColor: () => colors.textMuted,
+            propsForDots: {
+              r: "4",
+              strokeWidth: "2",
+              stroke: colors.plum,
+            },
+          }}
+          bezier
+          style={styles.chart}
+        />
       </View>
 
-      {/* Monthly Goal */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Objectif mensuel</Text>
-        <View style={styles.goalCard}>
-          <View style={styles.goalHeader}>
-            <Text style={styles.goalTitle}>Sessions complétées</Text>
-            <Text style={styles.goalValue}>
-              {monthlyGoal.done} / {monthlyGoal.target}
-            </Text>
+      <View style={styles.card}>
+        <Text style={styles.sectionTitle}>Radar d’activité</Text>
+        <RadarChart
+          values={[
+            data.overall.sessions_total,
+            data.overall.streak_days,
+            data.overall.badges_count,
+            data.monthly_goal.percent,
+            data.overall.time_total_seconds,
+          ]}
+        />
+      </View>
+
+      <View style={styles.card}>
+        <View style={styles.goalHeader}>
+          <View>
+            <Text style={styles.sectionTitle}>Objectif mensuel</Text>
+            <Text style={styles.goalSubtitle}>{data.monthly_goal.remaining} sessions restantes</Text>
           </View>
-          <View style={styles.goalProgress}>
-            <View style={styles.goalProgressBar}>
-              <View
-                style={[
-                  styles.goalProgressFill,
-                  { width: `${monthlyGoal.percent}%` },
-                ]}
-              />
-            </View>
-          </View>
-          <Text style={styles.goalSubtitle}>
-            {monthlyGoal.remaining} sessions restantes ce mois-ci
+          <Text style={styles.goalValue}>
+            {data.monthly_goal.done}/{data.monthly_goal.target}
           </Text>
         </View>
+        <View style={styles.progressTrack}>
+          <View style={[styles.progressFill, { width: `${Math.min(100, data.monthly_goal.percent)}%` }]} />
+        </View>
       </View>
 
-      {/* Achievements */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Badges obtenus</Text>
-        <View style={styles.achievementsGrid}>
-          {achievements.slice(0, 4).map((achievement) => (
-            <View
-              key={achievement.id}
-              style={[
-                styles.achievementCard,
-                !achievement.earned && styles.achievementLocked,
-              ]}
-            >
-              <Text style={styles.achievementIcon}>{achievement.icon}</Text>
-              <Text
-                style={[
-                  styles.achievementTitle,
-                  !achievement.earned && styles.achievementTitleLocked,
-                ]}
-              >
-                {achievement.title}
-              </Text>
+      <View style={styles.card}>
+        <View style={styles.rowTitle}>
+          <CalendarDays size={20} color={colors.plum} />
+          <Text style={styles.sectionTitle}>Heatmap calendrier</Text>
+        </View>
+        <View style={styles.heatmap}>
+          {data.weekly.data.map((item, index) => (
+            <View key={`${item.day}-${index}`} style={styles.heatDay}>
+              <View style={[styles.heatCell, { opacity: Math.max(0.2, item.value / Math.max(data.weekly.max_value, 1)) }]} />
+              <Text style={styles.heatLabel}>{item.day}</Text>
             </View>
           ))}
         </View>
-        <Pressable style={styles.viewAllButton}>
-          <Text style={styles.viewAllText}>Voir tous les badges →</Text>
-        </Pressable>
       </View>
 
-      {/* History */}
-      <View style={styles.section}>
+      <View style={styles.card}>
+        <Text style={styles.sectionTitle}>Badges</Text>
+        <View style={styles.badgeGrid}>
+          {data.achievements.map((achievement) => (
+            <View key={achievement.id} style={[styles.badge, !achievement.earned && styles.badgeLocked]}>
+              <AchievementIcon name={achievement.icon} />
+              <Text style={styles.badgeTitle}>{achievement.title}</Text>
+              <Text style={styles.badgeDescription}>{achievement.description}</Text>
+            </View>
+          ))}
+        </View>
+      </View>
+
+      <View style={styles.card}>
         <Text style={styles.sectionTitle}>Historique récent</Text>
-        {history.map((item, index) => (
-          <View key={item.id} style={styles.historyCard}>
-            <View style={styles.historyLeft}>
-              <Text style={styles.historyDate}>{item.date}</Text>
-              <Text style={styles.historyLevel}>{item.level}</Text>
-            </View>
-            <View style={styles.historyRight}>
-              <View style={styles.historyStat}>
-                <Text style={styles.historyStatIcon}>⏱️</Text>
-                <Text style={styles.historyStatText}>{item.duration}</Text>
+        {data.history.length === 0 ? (
+          <EmptyState title="Aucune session" message="Vos sessions terminées apparaîtront ici." />
+        ) : (
+          data.history.map((item) => (
+            <View key={item.id} style={styles.historyRow}>
+              <View>
+                <Text style={styles.historyDate}>{item.date}</Text>
+                <Text style={styles.historyLevel}>{item.level}</Text>
               </View>
-              <View style={styles.historyStat}>
-                <Text style={styles.historyStatIcon}>💪</Text>
-                <Text style={styles.historyStatText}>{item.exercises}</Text>
-              </View>
+              <Text style={styles.historyMeta}>
+                {item.duration} · {item.exercises} exercices
+              </Text>
             </View>
-          </View>
-        ))}
+          ))
+        )}
       </View>
-
-      {/* Bottom spacing */}
-      <View style={{ height: 100 }} />
     </ScrollView>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#F5ECEC",
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 24,
-    paddingTop: 50,
-    paddingBottom: 20,
-  },
-  headerTitle: {
-    flex: 1,
-    textAlign: "center",
-    fontSize: 20,
-    fontWeight: "800",
-    color: "#5A1A30",
-    marginRight: 40,
-  },
-  back: {
-    color: "#9B6A75",
-    fontSize: 16,
-  },
-  overallStats: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    paddingHorizontal: 24,
-    marginBottom: 24,
-  },
-  overallCard: {
-    flex: 1,
-    backgroundColor: "#FFF5F5",
-    borderRadius: 20,
-    padding: 16,
-    marginHorizontal: 4,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#EAD7DA",
-  },
-  overallNumber: {
-    fontSize: 24,
-    fontWeight: "800",
-    color: "#6A1E3A",
-  },
-  overallLabel: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#5A1A30",
-    marginTop: 4,
-  },
-  overallSublabel: {
-    fontSize: 10,
-    color: "#8A5A65",
-  },
-  section: {
-    paddingHorizontal: 24,
-    marginBottom: 24,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#5A1A30",
-    marginBottom: 12,
-  },
-  chartCard: {
-    backgroundColor: "#FFF5F5",
-    borderRadius: 24,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: "#EAD7DA",
-  },
-  chart: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-end",
-    height: 120,
-    paddingBottom: 12,
-  },
-  chartColumn: {
-    alignItems: "center",
-    flex: 1,
-  },
-  chartBarContainer: {
-    height: 100,
-    justifyContent: "flex-end",
-  },
-  chartBar: {
-    width: 24,
-    backgroundColor: "#B9657C",
-    borderRadius: 8,
-    minHeight: 8,
-  },
-  chartLabel: {
-    fontSize: 11,
-    color: "#8A5A65",
-    marginTop: 8,
-    fontWeight: "600",
-  },
-  chartLegend: {
-    flexDirection: "row",
-    justifyContent: "center",
-    marginTop: 16,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: "#EAD7DA",
-  },
-  legendItem: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  legendDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginRight: 6,
-  },
-  legendText: {
-    fontSize: 12,
-    color: "#8A5A65",
-  },
-  goalCard: {
-    backgroundColor: "#FFF5F5",
-    borderRadius: 20,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: "#EAD7DA",
-  },
-  goalHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 12,
-  },
-  goalTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#5A1A30",
-  },
-  goalValue: {
-    fontSize: 16,
-    fontWeight: "800",
-    color: "#6A1E3A",
-  },
-  goalProgress: {
-    marginBottom: 8,
-  },
-  goalProgressBar: {
-    height: 12,
-    backgroundColor: "#EAD7DA",
-    borderRadius: 6,
-    overflow: "hidden",
-  },
-  goalProgressFill: {
-    height: "100%",
-    backgroundColor: "#B9657C",
-    borderRadius: 6,
-  },
-  goalSubtitle: {
-    fontSize: 12,
-    color: "#8A5A65",
-  },
-  achievementsGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 12,
-  },
-  achievementCard: {
-    width: "47%",
-    backgroundColor: "#FFF5F5",
-    borderRadius: 16,
-    padding: 16,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#EAD7DA",
-  },
-  achievementLocked: {
-    opacity: 0.5,
-    backgroundColor: "#F0E0E3",
-  },
-  achievementIcon: {
-    fontSize: 32,
-    marginBottom: 8,
-  },
-  achievementTitle: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: "#5A1A30",
-    textAlign: "center",
-  },
-  achievementTitleLocked: {
-    color: "#8A5A65",
-  },
-  viewAllButton: {
-    marginTop: 16,
-    alignItems: "center",
-    padding: 10,
-  },
-  viewAllText: {
-    fontSize: 14,
-    color: "#B9657C",
-    fontWeight: "600",
-  },
-  historyCard: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    backgroundColor: "#FFF5F5",
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: "#EAD7DA",
-  },
-  historyLeft: {},
-  historyDate: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#5A1A30",
-  },
-  historyLevel: {
-    fontSize: 12,
-    color: "#8A5A65",
-    marginTop: 2,
-  },
-  historyRight: {
-    flexDirection: "row",
-    gap: 16,
-  },
-  historyStat: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  historyStatIcon: {
-    fontSize: 14,
-    marginRight: 4,
-  },
-  historyStatText: {
-    fontSize: 13,
-    color: "#6A1E3A",
-    fontWeight: "600",
-  },
-});
+function Stat({ icon, value, label }: { icon: ReactNode; value: string | number; label: string }) {
+  return (
+    <View style={styles.statCard}>
+      {icon}
+      <Text style={styles.statValue}>{value}</Text>
+      <Text style={styles.statLabel}>{label}</Text>
+    </View>
+  );
+}
 
+function RadarChart({ values }: { values: number[] }) {
+  const size = 220;
+  const center = size / 2;
+  const radiusValue = 82;
+  const max = Math.max(...values, 1);
+  const points = values.map((value, index) => {
+    const angle = -Math.PI / 2 + (index * 2 * Math.PI) / values.length;
+    const ratio = Math.min(1, value / max);
+    return `${center + Math.cos(angle) * radiusValue * ratio},${center + Math.sin(angle) * radiusValue * ratio}`;
+  });
+
+  return (
+    <View style={styles.radarWrap}>
+      <Svg width={size} height={size}>
+        {[0.33, 0.66, 1].map((ratio) => (
+          <Circle key={ratio} cx={center} cy={center} r={radiusValue * ratio} stroke={colors.border} fill="none" />
+        ))}
+        {values.map((_, index) => {
+          const angle = -Math.PI / 2 + (index * 2 * Math.PI) / values.length;
+          return (
+            <Line
+              key={index}
+              x1={center}
+              y1={center}
+              x2={center + Math.cos(angle) * radiusValue}
+              y2={center + Math.sin(angle) * radiusValue}
+              stroke={colors.border}
+            />
+          );
+        })}
+        <Polygon points={points.join(" ")} fill={`${colors.coral}55`} stroke={colors.plum} strokeWidth={2} />
+      </Svg>
+    </View>
+  );
+}
+
+function AchievementIcon({ name }: { name: string }) {
+  const props = { size: 24, color: colors.plum };
+  switch (name) {
+    case "target":
+      return <Target {...props} />;
+    case "calendar-check":
+      return <CalendarCheck {...props} />;
+    case "award":
+      return <Award {...props} />;
+    case "shield-check":
+      return <ShieldCheck {...props} />;
+    case "timer":
+      return <Timer {...props} />;
+    default:
+      return <BadgeCheck {...props} />;
+  }
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
+  content: { padding: spacing.xl, paddingTop: 56, paddingBottom: 120, gap: spacing.xl },
+  title: { fontSize: 28, fontWeight: "900", color: colors.plum },
+  subtitle: { color: colors.textMuted, marginTop: 4 },
+  statsGrid: { flexDirection: "row", gap: spacing.md },
+  statCard: {
+    flex: 1,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: 6,
+  },
+  statValue: { color: colors.plum, fontSize: 19, fontWeight: "900", textAlign: "center" },
+  statLabel: { color: colors.textMuted, fontSize: 12, fontWeight: "700" },
+  card: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.xl,
+    padding: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: spacing.md,
+  },
+  sectionTitle: { color: colors.plum, fontSize: 18, fontWeight: "900" },
+  chart: { borderRadius: radius.lg, marginLeft: -18 },
+  radarWrap: { alignItems: "center" },
+  goalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  goalSubtitle: { color: colors.textMuted, marginTop: 4 },
+  goalValue: { color: colors.plum, fontSize: 22, fontWeight: "900" },
+  progressTrack: { height: 12, borderRadius: 99, backgroundColor: colors.border, overflow: "hidden" },
+  progressFill: { height: "100%", backgroundColor: colors.coral },
+  rowTitle: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  heatmap: { flexDirection: "row", gap: spacing.sm, justifyContent: "space-between" },
+  heatDay: { flex: 1, alignItems: "center", gap: 6 },
+  heatCell: { width: "100%", aspectRatio: 1, borderRadius: 8, backgroundColor: colors.coral },
+  heatLabel: { color: colors.textMuted, fontSize: 12, fontWeight: "800" },
+  badgeGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.md },
+  badge: {
+    width: "47%",
+    backgroundColor: colors.surfaceAlt,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    gap: 4,
+  },
+  badgeLocked: { opacity: 0.45 },
+  badgeTitle: { color: colors.plum, fontWeight: "900" },
+  badgeDescription: { color: colors.textMuted, fontSize: 12 },
+  historyRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    gap: spacing.md,
+  },
+  historyDate: { color: colors.text, fontWeight: "900" },
+  historyLevel: { color: colors.textMuted, marginTop: 3 },
+  historyMeta: { color: colors.plum, fontWeight: "800", textAlign: "right" },
+});
