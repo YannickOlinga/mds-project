@@ -56,6 +56,10 @@ export async function clearTokens() {
 }
 
 export function normalizeAuthResponse(data: AuthResponse): StoredAuth {
+  if (!data) {
+    throw new Error("Réponse d'authentification invalide");
+  }
+
   const user: AuthUser | null = data.user ?? {
     id: data.profile_id,
     username: data.profile?.name ?? "",

@@ -1,10 +1,6 @@
-import axios, { AxiosError, InternalAxiosRequestConfig } from "axios";
-
 import { API_BASE_URL } from "@/config/env";
 import { clearTokens, getAccessToken, getRefreshToken, saveTokens } from "@/services/auth";
 import { AppError } from "@/utils/apiError";
-
-type RetryConfig = InternalAxiosRequestConfig & { _retry?: boolean };
 
 const apiBaseUrl = API_BASE_URL;
 
@@ -12,24 +8,96 @@ if (__DEV__) {
   console.log("[API] baseURL:", apiBaseUrl);
 }
 
-export const api = axios.create({
-  baseURL: apiBaseUrl,
-  timeout: 15000,
-  headers: {
+async function fetchWithAuth(url: string, options: RequestInit = {}, requireAuth = true) {
+  const token = requireAuth ? await getAccessToken() : null;
+  
+  const headers: Record<string, string> = {
     "Content-Type": "application/json",
-  },
-});
+    ...(options.headers as Record<string, string> || {}),
+  };
 
-export const publicApi = axios.create({
-  baseURL: apiBaseUrl,
-  timeout: 15000,
-  headers: {
-    "Content-Type": "application/json",
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+
+  if (__DEV__) {
+    console.log("[API Request]", options.method || "GET", url, options.body);
+  }
+
+  try {
+    const response = await fetch(`${apiBaseUrl}${url}`, {
+      ...options,
+      headers,
+    });
+
+    if (__DEV__) {
+      console.log("[API Response]", response.status, url);
+    }
+
+    if (!response) {
+      throw new AppError("Pas de réponse du serveur");
+    }
+
+    if (!response.ok) {
+      if (response.status === 401 && requireAuth) {
+        // Try to refresh token
+        try {
+          const newToken = await refreshAccessToken();
+          const retryHeaders: Record<string, string> = {
+            "Content-Type": "application/json",
+            ...(options.headers as Record<string, string> || {}),
+            "Authorization": `Bearer ${newToken}`,
+          };
+          const retryResponse = await fetch(`${apiBaseUrl}${url}`, {
+            ...options,
+            headers: retryHeaders,
+          });
+          if (!retryResponse.ok) {
+            throw new AppError(`Erreur serveur (${retryResponse.status})`, retryResponse.status);
+          }
+          return retryResponse.json();
+        } catch {
+          await clearTokens();
+          onUnauthorized?.();
+          throw new AppError("Session expirée.", 401);
+        }
+      }
+      throw new AppError(`Erreur serveur (${response.status})`, response.status);
+    }
+
+    return response.json();
+  } catch (error) {
+    if (__DEV__) {
+      console.log("[API Error]", error);
+    }
+    if (error instanceof AppError) {
+      throw error;
+    }
+    throw new AppError("Connexion au serveur impossible. Vérifiez votre réseau.");
+  }
+}
+
+export const api = {
+  get: (url: string, params?: Record<string, any>) => {
+    const queryString = params ? `?${new URLSearchParams(params).toString()}` : "";
+    return fetchWithAuth(`${url}${queryString}`, { method: "GET" });
   },
-});
+  post: (url: string, data?: any) => fetchWithAuth(url, { method: "POST", body: JSON.stringify(data) }),
+  put: (url: string, data?: any) => fetchWithAuth(url, { method: "PUT", body: JSON.stringify(data) }),
+  delete: (url: string) => fetchWithAuth(url, { method: "DELETE" }),
+};
+
+export const publicApi = {
+  get: (url: string, params?: Record<string, any>) => {
+    const queryString = params ? `?${new URLSearchParams(params).toString()}` : "";
+    return fetchWithAuth(`${url}${queryString}`, { method: "GET" }, false);
+  },
+  post: (url: string, data?: any) => fetchWithAuth(url, { method: "POST", body: JSON.stringify(data) }, false),
+  put: (url: string, data?: any) => fetchWithAuth(url, { method: "PUT", body: JSON.stringify(data) }, false),
+  delete: (url: string) => fetchWithAuth(url, { method: "DELETE" }, false),
+};
 
 let onUnauthorized: (() => void) | undefined;
-let refreshPromise: Promise<string> | null = null;
 
 export function setUnauthorizedHandler(handler: () => void) {
   onUnauthorized = handler;
@@ -41,48 +109,21 @@ export async function refreshAccessToken() {
     throw new AppError("Session expirée.", 401);
   }
 
-  const response = await publicApi.post<{ access: string; refresh?: string }>(
-    "/api/auth/refresh",
-    { refresh }
-  );
+  const response = await fetch(`${apiBaseUrl}/api/auth/refresh`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ refresh }),
+  });
 
-  const nextAccess = response.data.access;
-  const nextRefresh = response.data.refresh ?? refresh;
+  if (!response.ok) {
+    throw new AppError("Session expirée.", 401);
+  }
+
+  const data = await response.json();
+  const nextAccess = data.access;
+  const nextRefresh = data.refresh ?? refresh;
   await saveTokens({ accessToken: nextAccess, refreshToken: nextRefresh });
   return nextAccess;
 }
-
-api.interceptors.request.use(async (config) => {
-  const token = await getAccessToken();
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
-
-api.interceptors.response.use(
-  (response) => response,
-  async (error: AxiosError) => {
-    const status = error.response?.status;
-    const original = error.config as RetryConfig | undefined;
-
-    if (status !== 401 || !original || original._retry) {
-      return Promise.reject(error);
-    }
-
-    original._retry = true;
-
-    try {
-      refreshPromise = refreshPromise ?? refreshAccessToken();
-      const token = await refreshPromise;
-      refreshPromise = null;
-      original.headers.Authorization = `Bearer ${token}`;
-      return api(original);
-    } catch (refreshError) {
-      refreshPromise = null;
-      await clearTokens();
-      onUnauthorized?.();
-      return Promise.reject(refreshError);
-    }
-  }
-);

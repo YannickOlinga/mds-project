@@ -13,7 +13,10 @@
       "supportsTablet": true,
       "infoPlist": {
         "NSBluetoothAlwaysUsageDescription": "Périnea utilise le Bluetooth pour connecter la sonde et lire son état.",
-        "NSBluetoothPeripheralUsageDescription": "Périnea utilise le Bluetooth pour connecter la sonde."
+        "NSBluetoothPeripheralUsageDescription": "Périnea utilise le Bluetooth pour connecter la sonde.",
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": true
+        }
       }
     },
     "android": {

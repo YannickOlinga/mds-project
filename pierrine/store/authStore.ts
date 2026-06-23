@@ -88,6 +88,9 @@ const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
   },
 
   applyAuthResponse: async (response) => {
+    if (!response) {
+      throw new Error("Réponse d'authentification invalide");
+    }
     const session = normalizeAuthResponse(response);
     await saveTokens({
       accessToken: session.accessToken,

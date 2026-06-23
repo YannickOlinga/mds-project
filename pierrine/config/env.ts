@@ -1,40 +1,19 @@
-import Constants from "expo-constants";
-import { Platform } from "react-native";
-
-export type ExpoExtra = {
-  apiBaseUrl?: string;
-  apiHost?: string;
-  apiPort?: string;
-};
-
 function normalizeBaseUrl(url: string) {
   return url.replace(/\/$/, "");
 }
 
-/**
- * URL de base de l'API (injectée par app.config.js depuis l'IP locale).
- * Surcharge possible via EXPO_PUBLIC_API_BASE_URL dans .env
- */
+
 export function getApiBaseUrl(): string {
   if (process.env.EXPO_PUBLIC_API_BASE_URL) {
     return normalizeBaseUrl(process.env.EXPO_PUBLIC_API_BASE_URL);
   }
 
-  if (Platform.OS === "web") {
-    const port = process.env.EXPO_PUBLIC_API_PORT ?? "8000";
-    return `http://localhost:${port}`;
-  }
-
-  const extra = (Constants.expoConfig?.extra ?? {}) as ExpoExtra;
-
-  if (extra.apiBaseUrl) {
-    return normalizeBaseUrl(extra.apiBaseUrl);
-  }
-
-  const host = extra.apiHost ?? process.env.EXPO_PUBLIC_API_HOST ?? "localhost";
-  const port = extra.apiPort ?? process.env.EXPO_PUBLIC_API_PORT ?? "8000";
-
-  return `http://${host}:${port}`;
+  // Par défaut, utiliser l'API Scalingo (en dev et en prod)
+  return "https://perinea.osc-fr1.scalingo.io";
 }
 
 export const API_BASE_URL = getApiBaseUrl();
+
+
+export const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL ?? "";
+export const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? "";

@@ -53,7 +53,7 @@ function getLocalIpAddress() {
 
 /**
  * URL de base de l'API Django.
- * Priorité : EXPO_PUBLIC_API_BASE_URL > host+port > IP auto.
+ * Priorité : EXPO_PUBLIC_API_BASE_URL > API Scalingo par défaut.
  * @returns {string}
  */
 function getApiBaseUrl() {
@@ -61,10 +61,8 @@ function getApiBaseUrl() {
     return process.env.EXPO_PUBLIC_API_BASE_URL.replace(/\/$/, "");
   }
 
-  const host = process.env.EXPO_PUBLIC_API_HOST ?? getLocalIpAddress();
-  const port = process.env.EXPO_PUBLIC_API_PORT ?? DEFAULT_API_PORT;
-
-  return `http://${host}:${port}`;
+  // Utiliser l'API Scalingo par défaut (en dev et en prod)
+  return "https://perinea.osc-fr1.scalingo.io";
 }
 
 module.exports = {
