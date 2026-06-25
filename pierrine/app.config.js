@@ -1,21 +1,13 @@
-const { getApiBaseUrl } = require("./scripts/get-local-ip");
-
 const PRODUCTION_API_URL = "https://perinea.osc-fr1.scalingo.io";
 
 function resolveApiBaseUrl() {
-  if (process.env.EXPO_PUBLIC_API_BASE_URL) {
-    return process.env.EXPO_PUBLIC_API_BASE_URL.replace(/\/$/, "");
+  const fromEnv = process.env.EXPO_PUBLIC_API_BASE_URL?.trim();
+  if (fromEnv) {
+    return fromEnv.replace(/\/$/, "");
   }
 
-  if (process.env.EAS_BUILD_PROFILE === "production") {
-    return PRODUCTION_API_URL;
-  }
-
-  try {
-    return getApiBaseUrl();
-  } catch {
-    return PRODUCTION_API_URL;
-  }
+  // Par défaut : API Scalingo (backend + BDD en ligne), y compris en dev Expo.
+  return PRODUCTION_API_URL;
 }
 
 /** @param {{ config: import("@expo/config-types").ExpoConfig }} ctx */

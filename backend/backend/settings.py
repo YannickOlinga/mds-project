@@ -13,7 +13,13 @@ load_dotenv(BASE_DIR / ".env")
 SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "dev-secret-key-change-me")
 DEBUG = os.environ.get("DJANGO_DEBUG", "True") == "True"
 
-ALLOWED_HOSTS = ["*"]
+# Allow all hosts in development, but only the production domain otherwise.
+# The `README.md` mentions running the dev server on `0.0.0.0`, so we need
+# to allow local network IPs.
+if DEBUG:
+    ALLOWED_HOSTS = ["*"]
+else:
+    ALLOWED_HOSTS = ["perinea.osc-fr1.scalingo.io"]
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -110,6 +116,12 @@ REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.IsAuthenticated"],
 }
 
-# Expo RN / dev environment: allow requests from any origin.
-CORS_ALLOW_ALL_ORIGINS = True
-
+# CORS configuration
+if DEBUG:
+    # In development, allow any origin for easier local testing with Expo.
+    CORS_ALLOW_ALL_ORIGINS = True
+else:
+    # In production, only allow requests from your deployed frontend if you have one,
+    # or keep it restrictive. Native apps don't have a traditional 'origin',
+    # so this is more for web-based clients or added security.
+    CORS_ALLOWED_ORIGINS = []  # Add your frontend URL here if you have one.

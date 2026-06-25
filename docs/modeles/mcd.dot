@@ -1,0 +1,41 @@
+// MCD - Modele Conceptuel de Donnees (Merise) - Perinea
+digraph MCD {
+  graph [rankdir=LR, splines=true, nodesep=0.6, ranksep=1.2, fontname="Helvetica", bgcolor="white", label="MCD - Modele Conceptuel de Donnees (Perinea)", labelloc="t", fontsize=20];
+  node  [fontname="Helvetica"];
+  edge  [fontname="Helvetica", fontsize=11, color="#444444"];
+
+  // ----- ENTITES (rectangles) -----
+  node [shape=record, style="filled", fillcolor="#DCEAFB", color="#2563EB", fontsize=11];
+
+  UTILISATEUR [label="{UTILISATEUR|+ id\l username\l email\l password\l}"];
+  PROFIL [label="{PROFIL|+ id\l name\l email\l age\l objective\l level_key\l onboarding_completed\l created_at\l ...\l}"];
+  DEVICE_STATUS [label="{DEVICE_STATUS|+ id\l device_name\l battery_pct\l signal_level\l connected\l updated_at\l}"];
+  SESSION [label="{SESSION|+ id\l title\l level_key\l duration_minutes\l duration_seconds\l exercises_count\l started_at\l}"];
+  ACHIEVEMENT_TEMPLATE [label="{ACHIEVEMENT_TEMPLATE|+ id\l code\l title\l description\l icon\l}"];
+
+  // Entites de contenu isolees (sans association)
+  node [fillcolor="#E8F5E9", color="#16A34A"];
+  EXERCISE_TEMPLATE [label="{EXERCISE_TEMPLATE|+ id\l level_key\l name\l description\l icon\l duration_minutes\l timer_duration_seconds\l sort_order\l}"];
+  SESSION_TEMPLATE [label="{SESSION_TEMPLATE|+ id\l level_key\l title\l duration_minutes\l color_hex\l sort_order\l}"];
+  TIP_TEMPLATE [label="{TIP_TEMPLATE|+ id\l text\l icon\l sort_order\l}"];
+
+  // ----- ASSOCIATIONS (losanges) -----
+  node [shape=diamond, style="filled", fillcolor="#FFF3CD", color="#D97706", fontsize=11, height=0.9, width=1.6];
+  POSSEDER  [label="POSSEDER"];
+  DISPOSER  [label="DISPOSER"];
+  EFFECTUER [label="EFFECTUER"];
+  DEBLOQUER [label="DEBLOQUER\n(earned, earned_at)"];
+
+  // ----- LIENS + CARDINALITES -----
+  UTILISATEUR -> POSSEDER [dir=none, label="0,1"];
+  POSSEDER -> PROFIL      [dir=none, label="1,1"];
+
+  PROFIL -> DISPOSER         [dir=none, label="1,1"];
+  DISPOSER -> DEVICE_STATUS  [dir=none, label="0,1"];
+
+  PROFIL -> EFFECTUER   [dir=none, label="0,n"];
+  EFFECTUER -> SESSION  [dir=none, label="1,1"];
+
+  PROFIL -> DEBLOQUER               [dir=none, label="0,n"];
+  DEBLOQUER -> ACHIEVEMENT_TEMPLATE [dir=none, label="0,n"];
+}

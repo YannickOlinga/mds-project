@@ -1,6 +1,6 @@
 import { router } from "expo-router";
 import { AtSign, LockKeyhole, UserRound } from "lucide-react-native";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -27,14 +27,20 @@ export default function RegisterScreen() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const submittingRef = useRef(false);
   const register = useAuthStore((state) => state.register);
 
   async function handleRegister() {
+    if (submittingRef.current) {
+      return;
+    }
+
     if (!username.trim() || !email.trim() || password.length < 8) {
       setError("Remplissez tous les champs. Le mot de passe doit contenir au moins 8 caractères.");
       return;
     }
 
+    submittingRef.current = true;
     setError(null);
     setLoading(true);
 
@@ -45,6 +51,7 @@ export default function RegisterScreen() {
     } catch (e: unknown) {
       setError(getErrorMessage(e));
     } finally {
+      submittingRef.current = false;
       setLoading(false);
     }
   }

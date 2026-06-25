@@ -33,9 +33,7 @@ export async function connectDevice(payload: Partial<DeviceStatus> = {}) {
 }
 
 export async function getTrainingProgram(levelKey: LevelKey) {
-  return await api.get("/api/training/program", {
-    params: { level_key: levelKey },
-  });
+  return await api.get("/api/training/program", { level_key: levelKey });
 }
 
 export async function completeTraining(levelKey: LevelKey, exercisesCount: number) {

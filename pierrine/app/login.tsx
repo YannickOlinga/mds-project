@@ -1,6 +1,6 @@
 import { router } from "expo-router";
 import { LockKeyhole, UserRound } from "lucide-react-native";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -26,14 +26,20 @@ export default function LoginScreen() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const submittingRef = useRef(false);
   const login = useAuthStore((state) => state.login);
 
   async function handleLogin() {
+    if (submittingRef.current) {
+      return;
+    }
+
     if (!username.trim() || !password) {
       setError("Nom d'utilisateur et mot de passe requis.");
       return;
     }
 
+    submittingRef.current = true;
     setError(null);
     setLoading(true);
 
@@ -44,6 +50,7 @@ export default function LoginScreen() {
     } catch (e: unknown) {
       setError(getErrorMessage(e));
     } finally {
+      submittingRef.current = false;
       setLoading(false);
     }
   }

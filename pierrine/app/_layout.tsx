@@ -1,3 +1,4 @@
+import "@/lib/polyfills";
 import { Stack } from "expo-router";
 import { useEffect } from "react";
 import { useFonts } from "expo-font";

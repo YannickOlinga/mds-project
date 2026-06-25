@@ -12,5 +12,12 @@ venv/
 # Local databases
 *.sqlite3
 
+# Secrets / environnement
+.env
+.env.local
+
+# Export de données (PII, hash mots de passe)
+data_export.json
+
 # macOS
 .DS_Store

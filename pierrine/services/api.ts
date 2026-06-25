@@ -1,101 +1,163 @@
-import { API_BASE_URL } from "@/config/env";
+import * as Network from "expo-network";
+
+import { getApiBaseUrl } from "@/config/env";
 import { clearTokens, getAccessToken, getRefreshToken, saveTokens } from "@/services/auth";
 import { AppError } from "@/utils/apiError";
 
-const apiBaseUrl = API_BASE_URL;
+const apiBaseUrl = getApiBaseUrl();
+const REQUEST_TIMEOUT_MS = 12_000;
 
 if (__DEV__) {
   console.log("[API] baseURL:", apiBaseUrl);
 }
 
-async function fetchWithAuth(url: string, options: RequestInit = {}, requireAuth = true) {
-  const token = requireAuth ? await getAccessToken() : null;
-  
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    ...(options.headers as Record<string, string> || {}),
-  };
+type HttpMethod = "GET" | "POST" | "PUT" | "DELETE";
 
-  if (token) {
-    headers["Authorization"] = `Bearer ${token}`;
+type RequestOptions = {
+  body?: unknown;
+  params?: Record<string, string | number | boolean>;
+  auth?: boolean;
+  retryOn401?: boolean;
+};
+
+function buildUrl(path: string, params?: Record<string, string | number | boolean>) {
+  const base = apiBaseUrl.replace(/\/$/, "");
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  let url = `${base}${normalizedPath}`;
+
+  if (params && Object.keys(params).length > 0) {
+    const search = new URLSearchParams();
+    for (const [key, value] of Object.entries(params)) {
+      search.set(key, String(value));
+    }
+    url += `?${search.toString()}`;
   }
 
-  if (__DEV__) {
-    console.log("[API Request]", options.method || "GET", url, options.body);
+  return url;
+}
+
+function extractDetail(data: unknown): string | null {
+  if (!data || typeof data !== "object") return null;
+  const record = data as { detail?: unknown; message?: unknown };
+  if (typeof record.detail === "string") return record.detail;
+  if (typeof record.message === "string") return record.message;
+  return null;
+}
+
+async function ensureInternetReachable() {
+  const state = await Network.getNetworkStateAsync();
+  if (state.isConnected === false) {
+    throw new AppError("Pas de connexion internet sur l’appareil.");
   }
-
-  try {
-    const response = await fetch(`${apiBaseUrl}${url}`, {
-      ...options,
-      headers,
-    });
-
-    if (__DEV__) {
-      console.log("[API Response]", response.status, url);
-    }
-
-    if (!response) {
-      throw new AppError("Pas de réponse du serveur");
-    }
-
-    if (!response.ok) {
-      if (response.status === 401 && requireAuth) {
-        // Try to refresh token
-        try {
-          const newToken = await refreshAccessToken();
-          const retryHeaders: Record<string, string> = {
-            "Content-Type": "application/json",
-            ...(options.headers as Record<string, string> || {}),
-            "Authorization": `Bearer ${newToken}`,
-          };
-          const retryResponse = await fetch(`${apiBaseUrl}${url}`, {
-            ...options,
-            headers: retryHeaders,
-          });
-          if (!retryResponse.ok) {
-            throw new AppError(`Erreur serveur (${retryResponse.status})`, retryResponse.status);
-          }
-          return retryResponse.json();
-        } catch {
-          await clearTokens();
-          onUnauthorized?.();
-          throw new AppError("Session expirée.", 401);
-        }
-      }
-      throw new AppError(`Erreur serveur (${response.status})`, response.status);
-    }
-
-    return response.json();
-  } catch (error) {
-    if (__DEV__) {
-      console.log("[API Error]", error);
-    }
-    if (error instanceof AppError) {
-      throw error;
-    }
-    throw new AppError("Connexion au serveur impossible. Vérifiez votre réseau.");
+  if (state.isInternetReachable === false) {
+    throw new AppError(
+      "Internet inaccessible (Wi‑Fi sans accès externe ?). Essayez en 4G ou ouvrez l’URL dans Safari."
+    );
   }
 }
 
-export const api = {
-  get: (url: string, params?: Record<string, any>) => {
-    const queryString = params ? `?${new URLSearchParams(params).toString()}` : "";
-    return fetchWithAuth(`${url}${queryString}`, { method: "GET" });
-  },
-  post: (url: string, data?: any) => fetchWithAuth(url, { method: "POST", body: JSON.stringify(data) }),
-  put: (url: string, data?: any) => fetchWithAuth(url, { method: "PUT", body: JSON.stringify(data) }),
-  delete: (url: string) => fetchWithAuth(url, { method: "DELETE" }),
-};
+async function parseResponseBody(response: Response) {
+  const text = await response.text();
+  if (!text) return null;
 
-export const publicApi = {
-  get: (url: string, params?: Record<string, any>) => {
-    const queryString = params ? `?${new URLSearchParams(params).toString()}` : "";
-    return fetchWithAuth(`${url}${queryString}`, { method: "GET" }, false);
-  },
-  post: (url: string, data?: any) => fetchWithAuth(url, { method: "POST", body: JSON.stringify(data) }, false),
-  put: (url: string, data?: any) => fetchWithAuth(url, { method: "PUT", body: JSON.stringify(data) }, false),
-  delete: (url: string) => fetchWithAuth(url, { method: "DELETE" }, false),
-};
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    return text;
+  }
+}
+
+async function request<T>(
+  method: HttpMethod,
+  path: string,
+  options: RequestOptions = {}
+): Promise<T> {
+  await ensureInternetReachable();
+
+  const url = buildUrl(path, options.params);
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const started = Date.now();
+
+  if (__DEV__) {
+    console.log(`[API Request] ${method} ${url}`, options.body ?? "");
+  }
+
+  try {
+    const headers: Record<string, string> = {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    };
+
+    if (options.auth) {
+      const token = await getAccessToken();
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
+      }
+    }
+
+    const response = await fetch(url, {
+      method,
+      headers,
+      body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
+      signal: controller.signal,
+    });
+
+    const data = await parseResponseBody(response);
+    const elapsed = Date.now() - started;
+
+    if (__DEV__) {
+      console.log(`[API Response] ${response.status} ${url} (${elapsed}ms)`);
+    }
+
+    if (
+      response.status === 401 &&
+      options.auth &&
+      options.retryOn401 !== false
+    ) {
+      await refreshAccessToken();
+      return await request<T>(method, path, {
+        ...options,
+        retryOn401: false,
+      });
+    }
+
+    if (!response.ok) {
+      throw new AppError(
+        extractDetail(data) ?? `Erreur serveur (${response.status})`,
+        response.status
+      );
+    }
+
+    return data as T;
+  } catch (error) {
+    const elapsed = Date.now() - started;
+
+    if (__DEV__) {
+      console.log(`[API Error] ${url} (${elapsed}ms)`, error);
+    }
+
+    if (error instanceof AppError) {
+      throw error;
+    }
+
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new AppError(
+        `Délai dépassé (${REQUEST_TIMEOUT_MS / 1000}s). Le serveur ne répond pas — testez https://perinea.osc-fr1.scalingo.io dans Safari.`
+      );
+    }
+
+    if (error instanceof TypeError) {
+      throw new AppError(
+        `Impossible de joindre le serveur. Vérifiez internet sur l’iPhone (Safari ou 4G, pas seulement le partage de connexion).`
+      );
+    }
+
+    throw new AppError("Connexion au serveur impossible.");
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
 
 let onUnauthorized: (() => void) | undefined;
 
@@ -109,21 +171,33 @@ export async function refreshAccessToken() {
     throw new AppError("Session expirée.", 401);
   }
 
-  const response = await fetch(`${apiBaseUrl}/api/auth/refresh`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ refresh }),
-  });
-
-  if (!response.ok) {
-    throw new AppError("Session expirée.", 401);
+  try {
+    const response = await publicApi.post<{ access: string; refresh?: string }>(
+      "/api/auth/refresh",
+      { refresh }
+    );
+    const nextAccess = response.access;
+    const nextRefresh = response.refresh ?? refresh;
+    await saveTokens({ accessToken: nextAccess, refreshToken: nextRefresh });
+    return nextAccess;
+  } catch (error) {
+    await clearTokens();
+    onUnauthorized?.();
+    throw error;
   }
-
-  const data = await response.json();
-  const nextAccess = data.access;
-  const nextRefresh = data.refresh ?? refresh;
-  await saveTokens({ accessToken: nextAccess, refreshToken: nextRefresh });
-  return nextAccess;
 }
+
+function createClient(auth: boolean) {
+  return {
+    get: <T = unknown>(url: string, params?: Record<string, string | number | boolean>) =>
+      request<T>("GET", url, { params, auth }),
+    post: <T = unknown>(url: string, data?: unknown) =>
+      request<T>("POST", url, { body: data, auth }),
+    put: <T = unknown>(url: string, data?: unknown) =>
+      request<T>("PUT", url, { body: data, auth }),
+    delete: <T = unknown>(url: string) => request<T>("DELETE", url, { auth }),
+  };
+}
+
+export const api = createClient(true);
+export const publicApi = createClient(false);
