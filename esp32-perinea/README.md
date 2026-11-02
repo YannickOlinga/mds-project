@@ -26,12 +26,15 @@ Les autres bibliothèques sont **intégrées à ESP32** :
 
 ### 2. Configuration WiFi
 
-Éditer les lignes 16-17 du fichier `perinea.ino` :
+Copier `secrets.example.h` en `secrets.h` (fichier ignoré par git, ne jamais le commiter) puis l'éditer :
 
 ```cpp
 const char* WIFI_SSID = "Votre_SSID";
 const char* WIFI_PASSWORD = "Votre_Mot_de_Passe";
+const uint32_t BLE_PASSKEY = 123456; // PIN d'appairage Bluetooth, unique par sonde
 ```
+
+Au premier appairage Bluetooth, le téléphone demande ce code PIN : la liaison est ensuite chiffrée.
 
 ### 3. Téléchargement
 

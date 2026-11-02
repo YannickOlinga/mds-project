@@ -28,11 +28,12 @@ Documents/Arduino/perinea/perinea.ino
 
 ## Étape 3 : Configurer le WiFi
 
-Éditer `perinea.ino` lignes 15-16 :
+Copier `secrets.example.h` en `secrets.h` (fichier ignoré par git, ne jamais le commiter) puis l'éditer :
 
 ```cpp
 const char* WIFI_SSID = "Votre_WiFi";          // ← Remplacer par votre SSID
 const char* WIFI_PASSWORD = "VotreMotDePasse"; // ← Remplacer par votre mot de passe
+const uint32_t BLE_PASSKEY = 123456;           // ← PIN Bluetooth (6 chiffres, unique)
 ```
 
 **Exemples:**
