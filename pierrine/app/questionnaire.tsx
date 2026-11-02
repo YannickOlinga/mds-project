@@ -105,6 +105,7 @@ type FormState = {
   monthlyTarget: number;
   hasProbe: boolean | null;
   healthNotes: string;
+  healthConsent: boolean;
 };
 
 const initialForm: FormState = {
@@ -118,6 +119,7 @@ const initialForm: FormState = {
   monthlyTarget: 12,
   hasProbe: null,
   healthNotes: "",
+  healthConsent: false,
 };
 
 export default function Questionnaire() {
@@ -141,6 +143,10 @@ export default function Questionnaire() {
     }
     if (step.key === "habits") {
       return Boolean(form.frequency && form.hasProbe !== null);
+    }
+    if (step.key === "summary") {
+      // Consentement explicite obligatoire avant d'envoyer des données de santé (RGPD art. 9).
+      return form.healthConsent;
     }
     return true;
   }, [form, step.key]);
@@ -196,6 +202,7 @@ export default function Questionnaire() {
       monthly_goal_sessions_target: form.monthlyTarget,
       has_probe: form.hasProbe ?? false,
       health_notes: form.healthNotes.trim(),
+      health_data_consent: form.healthConsent,
       onboarding_completed: true,
     };
 
@@ -365,6 +372,11 @@ export default function Questionnaire() {
                 <Text style={styles.summaryValue}>{value}</Text>
               </View>
             ))}
+            {renderChoice(
+              "J\'accepte que mes données de santé (symptômes, contexte, notes) soient enregistrées de façon chiffrée pour personnaliser mon programme. Je peux retirer ce consentement à tout moment.",
+              form.healthConsent,
+              () => setValue("healthConsent", !form.healthConsent)
+            )}
           </View>
         ) : null}
 

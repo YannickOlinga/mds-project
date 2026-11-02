@@ -12,9 +12,14 @@ export type StoredAuth = {
   user: AuthUser | null;
 };
 
+// Web : sessionStorage plutôt que localStorage -> les jetons disparaissent à la fermeture de
+// l'onglet et ne sont pas partagés entre onglets (réduit l'exposition en cas de XSS).
+// Natif : SecureStore (Keychain iOS / Keystore Android).
+const webStorage = () => globalThis.sessionStorage;
+
 async function setStorageItem(key: string, value: string) {
   if (Platform.OS === "web") {
-    localStorage.setItem(key, value);
+    webStorage().setItem(key, value);
     return;
   }
   await SecureStore.setItemAsync(key, value);
@@ -22,14 +27,14 @@ async function setStorageItem(key: string, value: string) {
 
 async function getStorageItem(key: string) {
   if (Platform.OS === "web") {
-    return localStorage.getItem(key);
+    return webStorage().getItem(key);
   }
   return SecureStore.getItemAsync(key);
 }
 
 async function deleteStorageItem(key: string) {
   if (Platform.OS === "web") {
-    localStorage.removeItem(key);
+    webStorage().removeItem(key);
     return;
   }
   await SecureStore.deleteItemAsync(key);

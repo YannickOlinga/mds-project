@@ -46,6 +46,7 @@ export default function RootLayout() {
           <Stack.Screen name="questionnaire" />
           <Stack.Screen name="edit-profile" />
           <Stack.Screen name="settings" />
+          <Stack.Screen name="delete-account" />
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="game" />
           <Stack.Screen name="game-hub" />

@@ -8,6 +8,8 @@ const DISCOVERY_PORT = 81;
 const POLLING_INTERVAL = 100; // 100ms entre les polls
 const PROBE_TIMEOUT = 1500;   // timeout par IP
 const MAX_CONCURRENT = 40;    // requêtes simultanées max
+const DEVICE_SIGNATURE = 'Perinea-ESP32'; // préfixe de la réponse "/" du firmware
+const IPV4_RE = /^(25[0-5]|2[0-4]\d|1?\d?\d)(\.(25[0-5]|2[0-4]\d|1?\d?\d)){3}$/;
 
 /**
  * Récupère l'IP locale du téléphone et en déduit le préfixe /24 (ex: "10.144.158").
@@ -73,7 +75,10 @@ async function scanLocalNetwork(
 
     clearTimeout(timeoutId);
 
-    if (response && response.ok && !discoveredIPs.has(ip)) {
+    // N'importe quel équipement du réseau répond en HTTP 200 sur "/" : on vérifie la
+    // signature du firmware pour ne pas se connecter à un appareil tiers / usurpé.
+    const body = response && response.ok ? await response.text().catch(() => '') : '';
+    if (body.startsWith(DEVICE_SIGNATURE) && !discoveredIPs.has(ip)) {
       discoveredIPs.add(ip);
       onDevice({
         id: ip,
@@ -129,7 +134,7 @@ function startPolling(ip: string) {
 
       if (response && response.ok) {
         const data = await response.json();
-        if (data.event === 'touch') {
+        if (data && typeof data === 'object' && data.event === 'touch') {
           touchSignal.isPressed = data.pressed === true;
         }
       }
@@ -161,6 +166,10 @@ export const WifiDeviceService = {
 
   async connect(deviceId: string): Promise<PeripheralDevice> {
     const ip = deviceId; // l'ID est l'IP
+    // L'ID est interpolé dans une URL : on n'accepte qu'une IPv4 stricte.
+    if (!IPV4_RE.test(ip)) {
+      throw new Error('Identifiant d\'appareil invalide.');
+    }
 
     // Tester la connexion HTTP
     return new Promise((resolve, reject) => {

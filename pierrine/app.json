@@ -14,7 +14,8 @@
       "infoPlist": {
         "NSBluetoothAlwaysUsageDescription": "Périnea utilise le Bluetooth pour connecter la sonde et lire son état.",
         "NSBluetoothPeripheralUsageDescription": "Périnea utilise le Bluetooth pour connecter la sonde."
-      }
+      },
+      "bundleIdentifier": "com.yannickolinga.perinea"
     },
     "android": {
       "permissions": [
@@ -32,7 +33,8 @@
       },
       "usesCleartextTraffic": true,
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.yannickolinga.perinea"
     },
     "web": {
       "output": "static",
@@ -58,7 +60,9 @@
         "react-native-ble-plx",
         {
           "isBackgroundEnabled": false,
-          "modes": ["central"]
+          "modes": [
+            "central"
+          ]
         }
       ]
     ],

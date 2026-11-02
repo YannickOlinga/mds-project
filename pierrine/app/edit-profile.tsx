@@ -70,6 +70,7 @@ type FormState = {
   monthlyTarget: number;
   hasProbe: boolean;
   healthNotes: string;
+  healthConsent: boolean;
 };
 
 export default function EditProfileScreen() {
@@ -87,6 +88,7 @@ export default function EditProfileScreen() {
     monthlyTarget: 12,
     hasProbe: false,
     healthNotes: "",
+    healthConsent: false,
   });
 
   useEffect(() => {
@@ -103,8 +105,12 @@ export default function EditProfileScreen() {
       monthlyTarget: fields.monthly_goal_sessions_target ?? 12,
       hasProbe: fields.has_probe === true,
       healthNotes: fields.health_notes ?? "",
+      healthConsent: profile.data?.health_data_consent === true,
     });
-  }, [profile.data?.profile_fields]);
+  }, [profile.data?.profile_fields, profile.data?.health_data_consent]);
+
+  const hasHealthData =
+    form.symptoms.length > 0 || Boolean(form.birthContext) || Boolean(form.healthNotes.trim());
 
   const canSave = useMemo(() => {
     const age = Number(form.age);
@@ -147,13 +153,19 @@ export default function EditProfileScreen() {
       age: Number(form.age),
       objective: form.objective,
       level_key: form.levelKey,
-      symptoms: form.symptoms,
-      birth_context: form.birthContext,
       training_frequency: form.frequency,
       monthly_goal_sessions_target: form.monthlyTarget,
       has_probe: form.hasProbe,
-      health_notes: form.healthNotes.trim(),
+      health_data_consent: form.healthConsent,
       onboarding_completed: true,
+      // Retirer le consentement efface les données de santé côté serveur.
+      ...(form.healthConsent
+        ? {
+            symptoms: form.symptoms,
+            birth_context: form.birthContext,
+            health_notes: form.healthNotes.trim(),
+          }
+        : {}),
     };
 
     try {
@@ -235,6 +247,20 @@ export default function EditProfileScreen() {
           <Text style={styles.sectionTitle}>Sonde</Text>
           <Choice label="J'ai une sonde" selected={form.hasProbe} onPress={() => setValue("hasProbe", true)} />
           <Choice label="Je n'ai pas encore de sonde" selected={!form.hasProbe} onPress={() => setValue("hasProbe", false)} />
+        </View>
+
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>Consentement données de santé</Text>
+          <Choice
+            label="J'accepte que mes données de santé (symptômes, contexte, notes) soient enregistrées de façon chiffrée pour personnaliser mon programme. Je peux retirer ce consentement à tout moment."
+            selected={form.healthConsent}
+            onPress={() => setValue("healthConsent", !form.healthConsent)}
+          />
+          {!form.healthConsent && hasHealthData ? (
+            <Text style={styles.label}>
+              {"Sans consentement, vos symptômes, contexte et notes santé seront supprimés à l'enregistrement."}
+            </Text>
+          ) : null}
         </View>
 
         <View style={styles.card}>

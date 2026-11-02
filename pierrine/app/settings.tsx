@@ -10,7 +10,9 @@ import {
   LogOut,
   Moon,
   ShieldCheck,
+  ShieldOff,
   Smartphone,
+  Trash2,
   UserRound,
   Wifi,
 } from "lucide-react-native";
@@ -76,7 +78,29 @@ export default function SettingsScreen() {
   function showPrivacyNotice() {
     Alert.alert(
       "Confidentialité",
-      "Vos informations de profil et vos séances servent uniquement au suivi dans l’application. Les mesures liées à une sonde doivent rester rattachées à votre compte et protégées par votre session."
+      "Vos informations de profil et vos séances servent uniquement au suivi dans l’application. Vos données de santé ne sont enregistrées qu’avec votre consentement, sont chiffrées sur nos serveurs et transitent de façon chiffrée (HTTPS). Vous pouvez retirer votre consentement ou supprimer votre compte à tout moment depuis cet écran."
+    );
+  }
+
+  function confirmWithdrawConsent() {
+    Alert.alert(
+      "Retirer mon consentement",
+      "Vos symptômes, votre contexte et vos notes santé seront définitivement effacés. Vos séances sont conservées.",
+      [
+        { text: "Annuler", style: "cancel" },
+        {
+          text: "Retirer et effacer",
+          style: "destructive",
+          onPress: () =>
+            updateSettings.mutate(
+              { health_data_consent: false },
+              {
+                onSuccess: () => showToast("Données de santé effacées"),
+                onError: (error) => showToast(getErrorMessage(error)),
+              }
+            ),
+        },
+      ]
     );
   }
 
@@ -216,6 +240,20 @@ export default function SettingsScreen() {
           title="Confidentialité des données"
           description="Rappel sur la protection des données de santé"
           onPress={showPrivacyNotice}
+        />
+        {data.health_data_consent ? (
+          <ActionRow
+            icon={<ShieldOff size={21} color={colors.plum} />}
+            title="Retirer mon consentement santé"
+            description="Efface symptômes, contexte et notes santé"
+            onPress={confirmWithdrawConsent}
+          />
+        ) : null}
+        <ActionRow
+          icon={<Trash2 size={21} color={colors.danger} />}
+          title="Supprimer mon compte"
+          description="Effacement définitif de toutes vos données"
+          onPress={() => router.push("/delete-account")}
         />
       </SettingsSection>
 

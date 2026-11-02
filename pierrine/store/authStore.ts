@@ -8,7 +8,7 @@ import {
   normalizeAuthResponse,
   saveTokens,
 } from "@/services/auth";
-import { loginRequest, registerRequest } from "@/services/endpoints";
+import { loginRequest, logoutRequest, registerRequest } from "@/services/endpoints";
 import type { AuthResponse, AuthUser } from "@/types/api";
 import { getErrorMessage } from "@/utils/apiError";
 
@@ -104,6 +104,11 @@ const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
   },
 
   logout: async () => {
+    const refresh = get().refreshToken ?? (await getRefreshToken());
+    if (refresh) {
+      // Ne bloque pas la déconnexion locale si le serveur est injoignable.
+      await logoutRequest(refresh).catch(() => undefined);
+    }
     await get().clearSession();
     router.replace("/login");
   },
