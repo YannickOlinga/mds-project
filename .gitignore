@@ -14,3 +14,19 @@ venv/
 
 # macOS
 .DS_Store
+
+# Secrets / environnement
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Outils téléchargés
+backend/get-pip.py
+
+# Node (racine)
+node_modules/
+
+# Firmware : identifiants Wi-Fi locaux
+esp32-perinea/secrets.h
