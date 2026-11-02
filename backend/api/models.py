@@ -1,6 +1,8 @@
 from django.db import models
 from django.conf import settings
 
+from .fields import EncryptedJSONField, EncryptedTextField
+
 
 LEVEL_DEBUTANT = "debutant"
 LEVEL_INTERMEDIAIRE = "intermediaire"
@@ -28,10 +30,12 @@ class Profile(models.Model):
     objective = models.CharField(max_length=255)
     level_key = models.CharField(max_length=32, choices=LEVEL_CHOICES, default=LEVEL_DEBUTANT)
     training_frequency = models.CharField(max_length=80, blank=True, default="")
-    symptoms = models.JSONField(default=list, blank=True)
-    birth_context = models.CharField(max_length=120, blank=True, default="")
+    # Données de santé (RGPD art. 9) : chiffrées au repos, stockées seulement avec consentement.
+    symptoms = EncryptedJSONField(default=list, blank=True)
+    birth_context = EncryptedTextField(blank=True, default="")
     has_probe = models.BooleanField(null=True, blank=True)
-    health_notes = models.TextField(blank=True, default="")
+    health_notes = EncryptedTextField(blank=True, default="")
+    health_data_consent_at = models.DateTimeField(null=True, blank=True)
     onboarding_completed = models.BooleanField(default=False)
 
     reminders = models.BooleanField(default=True)

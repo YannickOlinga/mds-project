@@ -516,6 +516,7 @@ def build_profile(profile_id: int) -> dict:
     return {
         "onboarding_completed": profile.onboarding_completed,
         "has_probe": profile.has_probe,
+        "health_data_consent": profile.health_data_consent_at is not None,
         "profile_fields": {
             "name": profile.name,
             "age": profile.age,
