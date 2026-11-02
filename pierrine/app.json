@@ -3,7 +3,11 @@
     "name": "Périnéa",
     "slug": "pierrine",
     "version": "1.0.0",
-    "extra": {},
+    "extra": {
+      "eas": {
+        "projectId": "a53b1077-052e-4d85-9765-f47dfe04781d"
+      }
+    },
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "pierrine",
@@ -69,6 +73,7 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "owner": "yannickolinga"
   }
 }
