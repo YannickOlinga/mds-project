@@ -27,6 +27,16 @@ export async function registerRequest(username: string, email: string, password:
   return response.data;
 }
 
+/** Révoque le refresh token côté serveur (best effort). */
+export async function logoutRequest(refresh: string) {
+  await api.post("/api/auth/logout", { refresh });
+}
+
+/** Suppression définitive du compte et des données de santé (RGPD). */
+export async function deleteAccountRequest(password: string) {
+  await api.post("/api/me/delete", { password });
+}
+
 export async function getDashboard() {
   const response = await api.get<DashboardResponse>("/api/home/dashboard");
   return response.data;

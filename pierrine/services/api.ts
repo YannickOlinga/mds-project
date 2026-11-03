@@ -8,6 +8,15 @@ type RetryConfig = InternalAxiosRequestConfig & { _retry?: boolean };
 
 const apiBaseUrl = API_BASE_URL;
 
+// Les jetons JWT et les données de santé ne doivent jamais transiter en clair hors développement.
+// Seule exception : un build de démo explicitement marqué (profil EAS "preview", réseau local).
+const allowInsecureApi = process.env.EXPO_PUBLIC_ALLOW_INSECURE_API === "true";
+if (!__DEV__ && !allowInsecureApi && !apiBaseUrl.startsWith("https://")) {
+  throw new Error(
+    `[API] URL non sécurisée refusée en production : ${apiBaseUrl}. Configurez EXPO_PUBLIC_API_BASE_URL en https://`
+  );
+}
+
 if (__DEV__) {
   console.log("[API] baseURL:", apiBaseUrl);
 }
@@ -35,7 +44,7 @@ export function setUnauthorizedHandler(handler: () => void) {
   onUnauthorized = handler;
 }
 
-export async function refreshAccessToken() {
+async function doRefreshAccessToken() {
   const refresh = await getRefreshToken();
   if (!refresh) {
     throw new AppError("Session expirée.", 401);
@@ -50,6 +59,19 @@ export async function refreshAccessToken() {
   const nextRefresh = response.data.refresh ?? refresh;
   await saveTokens({ accessToken: nextAccess, refreshToken: nextRefresh });
   return nextAccess;
+}
+
+/**
+ * Un seul refresh à la fois : le backend fait tourner (et révoque) le refresh token
+ * à chaque usage, deux refresh concurrents invalideraient la session.
+ */
+export function refreshAccessToken(): Promise<string> {
+  if (!refreshPromise) {
+    refreshPromise = doRefreshAccessToken().finally(() => {
+      refreshPromise = null;
+    });
+  }
+  return refreshPromise;
 }
 
 api.interceptors.request.use(async (config) => {
@@ -73,13 +95,10 @@ api.interceptors.response.use(
     original._retry = true;
 
     try {
-      refreshPromise = refreshPromise ?? refreshAccessToken();
-      const token = await refreshPromise;
-      refreshPromise = null;
+      const token = await refreshAccessToken();
       original.headers.Authorization = `Bearer ${token}`;
       return api(original);
     } catch (refreshError) {
-      refreshPromise = null;
       await clearTokens();
       onUnauthorized?.();
       return Promise.reject(refreshError);

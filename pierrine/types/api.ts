@@ -151,6 +151,7 @@ export type ProfileInfoItem = {
 
 export type ProfileResponse = {
   onboarding_completed?: boolean;
+  health_data_consent?: boolean;
   has_probe?: boolean | null;
   profile_fields?: {
     name: string;
@@ -197,6 +198,7 @@ export type ProfileUpdatePayload = {
   health_notes?: string;
   monthly_goal_sessions_target?: number;
   onboarding_completed?: boolean;
+  health_data_consent?: boolean;
   reminders?: boolean;
   notifications?: boolean;
   darkMode?: boolean;

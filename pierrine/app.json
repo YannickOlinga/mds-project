@@ -3,7 +3,11 @@
     "name": "Périnéa",
     "slug": "pierrine",
     "version": "1.0.0",
-    "extra": {},
+    "extra": {
+      "eas": {
+        "projectId": "a53b1077-052e-4d85-9765-f47dfe04781d"
+      }
+    },
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "pierrine",
@@ -14,7 +18,8 @@
       "infoPlist": {
         "NSBluetoothAlwaysUsageDescription": "Périnea utilise le Bluetooth pour connecter la sonde et lire son état.",
         "NSBluetoothPeripheralUsageDescription": "Périnea utilise le Bluetooth pour connecter la sonde."
-      }
+      },
+      "bundleIdentifier": "com.yannickolinga.perinea"
     },
     "android": {
       "permissions": [
@@ -32,7 +37,8 @@
       },
       "usesCleartextTraffic": true,
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.yannickolinga.perinea"
     },
     "web": {
       "output": "static",
@@ -58,13 +64,16 @@
         "react-native-ble-plx",
         {
           "isBackgroundEnabled": false,
-          "modes": ["central"]
+          "modes": [
+            "central"
+          ]
         }
       ]
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "owner": "yannickolinga"
   }
 }

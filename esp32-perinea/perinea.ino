@@ -2,6 +2,7 @@
 #include <BLEServer.h>
 #include <BLEUtils.h>
 #include <BLE2902.h>
+#include <BLESecurity.h>
 #include <WiFi.h>
 #include <WebServer.h>
 #include <ArduinoJson.h>
@@ -12,9 +13,9 @@
 #define SERVICE_UUID    "f3641400-00b0-4240-ba50-05ca45bf8abc"
 #define TOUCH_CHAR_UUID "f3641401-00b0-4240-ba50-05ca45bf8abc"
 
-// WiFi credentials
-const char* WIFI_SSID = "Yannick";
-const char* WIFI_PASSWORD = "00000000";
+// Identifiants Wi-Fi : définis dans secrets.h (non versionné).
+// Copier secrets.example.h -> secrets.h puis renseigner WIFI_SSID / WIFI_PASSWORD.
+#include "secrets.h"
 
 struct TouchSensor {
   byte wasPressed = LOW;
@@ -109,6 +110,14 @@ void setup() {
 
   // ========== BLE Setup ==========
   BLEDevice::init("Perinea-ESP32");
+
+  // Sécurité BLE : appairage LE Secure Connections + protection MITM par code PIN
+  // (BLE_PASSKEY dans secrets.h, à imprimer sur la notice / l'emballage de la sonde).
+  // Le téléphone demande ce code une seule fois, puis le lien est chiffré et mémorisé (bonding).
+  BLEDevice::setEncryptionLevel(ESP_BLE_SEC_ENCRYPT_MITM);
+  BLESecurity* pSecurity = new BLESecurity();
+  pSecurity->setStaticPIN(BLE_PASSKEY);  // active ESP_LE_AUTH_REQ_SC_MITM_BOND
+
   BLEServer* pServer = BLEDevice::createServer();
   pServer->setCallbacks(new ServerCallbacks());
 
@@ -119,7 +128,11 @@ void setup() {
     BLECharacteristic::PROPERTY_READ |
     BLECharacteristic::PROPERTY_NOTIFY
   );
-  pTouchChar->addDescriptor(new BLE2902());
+  // Lecture / notifications réservées à un téléphone appairé (lien chiffré + authentifié).
+  pTouchChar->setAccessPermissions(ESP_GATT_PERM_READ_ENC_MITM);
+  BLE2902* pCccd = new BLE2902();
+  pCccd->setAccessPermissions(ESP_GATT_PERM_READ_ENC_MITM | ESP_GATT_PERM_WRITE_ENC_MITM);
+  pTouchChar->addDescriptor(pCccd);
 
   uint8_t init = 0;
   pTouchChar->setValue(&init, 1);
